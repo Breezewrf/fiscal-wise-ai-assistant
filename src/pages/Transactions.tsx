@@ -1,33 +1,89 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionList, Transaction } from '@/components/transactions/TransactionList';
-import { generateMockTransactions } from '@/lib/mock-data';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { v4 as uuidv4 } from 'uuid';
+import { 
+  fetchTransactions, 
+  addTransaction, 
+  deleteTransaction, 
+  updateTransaction 
+} from '@/lib/db/transactions';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function Transactions() {
-  const [transactions, setTransactions] = useState<Transaction[]>(generateMockTransactions(20));
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isClearing, setIsClearing] = useState(false);
 
-  const handleFormSubmit = (data: any) => {
-    const newTransaction: Transaction = {
-      id: uuidv4(),
+  // Fetch transactions with React Query
+  const { 
+    data: transactions = [], 
+    isLoading,
+    isError,
+    error
+  } = useQuery({
+    queryKey: ['transactions'],
+    queryFn: fetchTransactions
+  });
+
+  // Add transaction mutation
+  const addTransactionMutation = useMutation({
+    mutationFn: addTransaction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast({
+        title: "Transaction Added",
+        description: "Your transaction has been recorded successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to add transaction: " + (error as Error).message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete transaction mutation
+  const deleteTransactionMutation = useMutation({
+    mutationFn: deleteTransaction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast({
+        title: "Transaction Deleted",
+        description: "The transaction has been removed.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete transaction: " + (error as Error).message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Handle form submission
+  const handleFormSubmit = async (data: any) => {
+    const newTransaction: Partial<Transaction> = {
       date: data.date,
       type: data.type,
       category: data.category,
       amount: parseFloat(data.amount),
-      description: data.description
+      description: data.description,
+      importedFrom: 'manual'
     };
     
-    setTransactions(prev => [newTransaction, ...prev]);
-    
-    return Promise.resolve(); // Simulate API call success
+    await addTransactionMutation.mutateAsync(newTransaction);
+    return Promise.resolve();
   };
 
+  // Handle edit transaction
   const handleEditTransaction = (id: string) => {
     // In a real app, this would open a modal or navigate to edit form
     toast({
@@ -36,21 +92,49 @@ export default function Transactions() {
     });
   };
 
+  // Handle delete transaction
   const handleDeleteTransaction = (id: string) => {
-    setTransactions(prev => prev.filter(transaction => transaction.id !== id));
-    toast({
-      title: "Transaction Deleted",
-      description: "The transaction has been removed.",
-    });
+    deleteTransactionMutation.mutate(id);
   };
 
-  const handleClearAll = () => {
-    setTransactions([]);
-    toast({
-      title: "All Transactions Cleared",
-      description: "All transactions have been removed.",
-    });
+  // Handle clear all transactions
+  const handleClearAll = async () => {
+    setIsClearing(true);
+    try {
+      // Delete each transaction one by one
+      const promises = transactions.map(transaction => 
+        deleteTransaction(transaction.id)
+      );
+      
+      await Promise.all(promises);
+      
+      queryClient.setQueryData(['transactions'], []);
+      
+      toast({
+        title: "All Transactions Cleared",
+        description: "All transactions have been removed.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to clear transactions: " + (error as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsClearing(false);
+    }
   };
+
+  // Show error message if fetch fails
+  useEffect(() => {
+    if (isError && error) {
+      toast({
+        title: "Error Loading Transactions",
+        description: "Failed to load your transactions: " + (error as Error).message,
+        variant: "destructive",
+      });
+    }
+  }, [isError, error, toast]);
 
   return (
     <div className="animate-fade-in">
@@ -63,8 +147,13 @@ export default function Transactions() {
             <TabsTrigger value="add">Add Transaction</TabsTrigger>
           </TabsList>
           
-          <Button variant="destructive" size="sm" onClick={handleClearAll} disabled={transactions.length === 0}>
-            Clear All
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            onClick={handleClearAll} 
+            disabled={transactions.length === 0 || isClearing || isLoading}
+          >
+            {isClearing ? "Clearing..." : "Clear All"}
           </Button>
         </div>
         
@@ -75,6 +164,7 @@ export default function Transactions() {
                 transactions={transactions}
                 onEditTransaction={handleEditTransaction}
                 onDeleteTransaction={handleDeleteTransaction}
+                isLoading={isLoading}
               />
             </CardContent>
           </Card>
@@ -89,7 +179,10 @@ export default function Transactions() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <TransactionForm onSubmit={handleFormSubmit} />
+              <TransactionForm 
+                onSubmit={handleFormSubmit} 
+                isSubmitting={addTransactionMutation.isPending}
+              />
             </CardContent>
           </Card>
         </TabsContent>

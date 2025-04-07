@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,9 +14,13 @@ import {
 import { Camera, MessageSquare, ScanSearch, Upload, AlertCircle, Receipt } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Transaction } from '@/components/transactions/TransactionList';
+import { importTransactions, addTransaction } from '@/lib/db/transactions';
 
 export default function ImportData() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [fileSelected, setFileSelected] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSource, setSelectedSource] = useState("generic");
@@ -31,6 +34,25 @@ export default function ImportData() {
     items?: string[];
   } | null>(null);
 
+  // Use React Query for data mutations
+  const queryClient = useQueryClient();
+  
+  // Import transactions mutation
+  const importTransactionsMutation = useMutation({
+    mutationFn: importTransactions,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    }
+  });
+  
+  // Add single transaction mutation
+  const addTransactionMutation = useMutation({
+    mutationFn: addTransaction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    }
+  });
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setFileSelected(e.target.files[0]);
@@ -41,7 +63,7 @@ export default function ImportData() {
     setSelectedSource(value);
   };
 
-  const handleFileUpload = () => {
+  const handleFileUpload = async () => {
     if (!fileSelected) {
       toast({
         title: "No file selected",
@@ -53,24 +75,58 @@ export default function ImportData() {
 
     setIsLoading(true);
     
-    // Simulate file upload with different processing based on source
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      // In a real app, here we would parse the CSV file
+      // For this example, we'll create mock transactions
       
+      // Mock importing data from file
+      const mockTransactions: Partial<Transaction>[] = [];
+      
+      // Generate different mock data depending on the source
       if (selectedSource === "wechat") {
-        toast({
-          title: "WeChat Pay Import Successful",
-          description: `Processed ${fileSelected.name} and imported 24 transactions from WeChat Pay.`,
-        });
+        // Create 5 mock WeChat transactions
+        for (let i = 0; i < 5; i++) {
+          mockTransactions.push({
+            date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
+            type: Math.random() > 0.3 ? 'expense' : 'income',
+            category: Math.random() > 0.5 ? 'Shopping' : 'Food & Dining',
+            amount: Math.floor(Math.random() * 100) + 10,
+            description: `WeChat transaction #${i+1}`,
+            merchant: `WeChat Merchant ${i+1}`,
+            importedFrom: 'wechat'
+          });
+        }
       } else {
-        toast({
-          title: "Upload Successful",
-          description: `File "${fileSelected.name}" has been uploaded and processed.`,
-        });
+        // Create 3 generic transactions
+        for (let i = 0; i < 3; i++) {
+          mockTransactions.push({
+            date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
+            type: Math.random() > 0.3 ? 'expense' : 'income',
+            category: 'Other',
+            amount: Math.floor(Math.random() * 50) + 5,
+            description: `Imported transaction #${i+1}`,
+            importedFrom: 'file'
+          });
+        }
       }
       
+      // Save the transactions to the database
+      await importTransactionsMutation.mutateAsync(mockTransactions);
+      
+      toast({
+        title: `${selectedSource === "wechat" ? "WeChat Pay" : "File"} Import Successful`,
+        description: `Processed ${fileSelected.name} and imported ${mockTransactions.length} transactions.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Import Failed",
+        description: `Error: ${(error as Error).message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
       setFileSelected(null);
-    }, 2000);
+    }
   };
 
   // Receipt image processing
@@ -114,15 +170,26 @@ export default function ImportData() {
     }, 2000);
   };
 
-  // Function to save extracted receipt data
-  const handleSaveReceiptData = () => {
+  // Function to save extracted receipt data to database
+  const handleSaveReceiptData = async () => {
     if (!extractedData) return;
     
     setIsLoading(true);
     
-    // Simulate saving the extracted receipt data
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      // Create a new transaction from the extracted data
+      const newTransaction: Partial<Transaction> = {
+        date: new Date(extractedData.date),
+        type: 'expense',
+        category: 'Food & Dining',
+        amount: parseFloat(extractedData.amount),
+        description: extractedData.items?.join(', '),
+        merchant: extractedData.merchant,
+        importedFrom: 'receipt'
+      };
+      
+      // Save to database
+      await addTransactionMutation.mutateAsync(newTransaction);
       
       toast({
         title: "Transaction Saved",
@@ -132,7 +199,15 @@ export default function ImportData() {
       // Reset for next scan
       setReceiptImage(null);
       setExtractedData(null);
-    }, 1000);
+    } catch (error) {
+      toast({
+        title: "Error Saving Transaction",
+        description: `Error: ${(error as Error).message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Render help text based on selected source

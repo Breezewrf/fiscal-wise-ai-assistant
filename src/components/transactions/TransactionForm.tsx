@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -45,12 +44,12 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 interface TransactionFormProps {
-  onSubmit: (data: FormValues) => void;
+  onSubmit: (data: FormValues) => Promise<void>;
+  isSubmitting?: boolean;
 }
 
-export function TransactionForm({ onSubmit }: TransactionFormProps) {
+export function TransactionForm({ onSubmit, isSubmitting = false }: TransactionFormProps) {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -64,13 +63,8 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
   });
 
   const handleSubmit = async (data: FormValues) => {
-    setLoading(true);
     try {
       await onSubmit(data);
-      toast({
-        title: "Success",
-        description: "Transaction has been recorded.",
-      });
       form.reset();
     } catch (error) {
       toast({
@@ -78,8 +72,6 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
         description: "Failed to record transaction.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -239,8 +231,8 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
           )}
         />
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Recording..." : "Record Transaction"}
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Recording..." : "Record Transaction"}
         </Button>
       </form>
     </Form>
