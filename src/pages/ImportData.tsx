@@ -33,9 +33,6 @@ export default function ImportData() {
     date: string;
     items?: string[];
   } | null>(null);
-
-  // Use React Query for data mutations
-  const queryClient = useQueryClient();
   
   // Import transactions mutation
   const importTransactionsMutation = useMutation({
@@ -129,7 +126,6 @@ export default function ImportData() {
     }
   };
 
-  // Receipt image processing
   const handleReceiptImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setReceiptImage(e.target.files[0]);
@@ -170,7 +166,6 @@ export default function ImportData() {
     }, 2000);
   };
 
-  // Function to save extracted receipt data to database
   const handleSaveReceiptData = async () => {
     if (!extractedData) return;
     
@@ -210,7 +205,6 @@ export default function ImportData() {
     }
   };
 
-  // Render help text based on selected source
   const renderSourceHelp = () => {
     if (selectedSource === "wechat") {
       return (
@@ -248,7 +242,6 @@ export default function ImportData() {
     }, 2000);
   };
 
-  // Render extracted receipt data preview
   const renderExtractedDataPreview = () => {
     if (!extractedData) return null;
     
