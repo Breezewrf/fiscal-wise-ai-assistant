@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowUpTray, Camera, MessageSquare, ScanSearch } from "lucide-react";
+import { Camera, MessageSquare, ScanSearch, Upload } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 
 export default function ImportData() {
@@ -115,7 +115,7 @@ export default function ImportData() {
                 <div className="grid gap-2">
                   <div className="border rounded-md p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors">
                     <div className="flex flex-col items-center gap-2">
-                      <ArrowUpTray className="h-8 w-8 text-muted-foreground" />
+                      <Upload className="h-8 w-8 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
                         {fileSelected 
                           ? `Selected: ${fileSelected.name}`
