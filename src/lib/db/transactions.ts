@@ -61,7 +61,8 @@ export const addTransaction = async (transaction: Partial<Transaction>): Promise
     throw error;
   }
 
-  return mapDbToTransaction(data);
+  // Fix: Explicitly cast the data to DbTransaction before mapping
+  return mapDbToTransaction(data as DbTransaction);
 };
 
 // Update an existing transaction
@@ -80,7 +81,8 @@ export const updateTransaction = async (id: string, updates: Partial<Transaction
     throw error;
   }
 
-  return mapDbToTransaction(data);
+  // Fix: Explicitly cast the data to DbTransaction before mapping
+  return mapDbToTransaction(data as DbTransaction);
 };
 
 // Delete a transaction
@@ -110,5 +112,6 @@ export const importTransactions = async (transactions: Partial<Transaction>[]): 
     throw error;
   }
 
-  return (data || []).map(mapDbToTransaction);
+  // Fix: Explicitly cast the data array to DbTransaction[] before mapping
+  return (data || []).map((item) => mapDbToTransaction(item as DbTransaction));
 };
