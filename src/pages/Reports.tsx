@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -36,7 +35,6 @@ export default function Reports() {
   const transactions = generateMockTransactions(90);
   const categoryData = getExpensesByCategory(transactions);
   
-  // Mock data for reports
   const timelineData = [
     { name: 'Jan', income: 4000, expenses: 2400 },
     { name: 'Feb', income: 3000, expenses: 2210 },
@@ -175,7 +173,12 @@ export default function Reports() {
                         ))}
                       </Pie>
                       <Tooltip 
-                        formatter={(value) => [`$${value.toFixed(2)}`, undefined]}
+                        formatter={(value) => {
+                          if (typeof value === 'number') {
+                            return [`$${value.toFixed(2)}`, undefined];
+                          }
+                          return [`$${value}`, undefined];
+                        }}
                         contentStyle={{ 
                           backgroundColor: 'white', 
                           border: '1px solid #e2e8f0',
@@ -317,7 +320,12 @@ export default function Reports() {
                         ))}
                       </Pie>
                       <Tooltip 
-                        formatter={(value) => [`$${value.toFixed(2)}`, undefined]}
+                        formatter={(value) => {
+                          if (typeof value === 'number') {
+                            return [`$${value.toFixed(2)}`, undefined];
+                          }
+                          return [`$${value}`, undefined];
+                        }}
                         contentStyle={{ 
                           backgroundColor: 'white', 
                           border: '1px solid #e2e8f0',
@@ -380,7 +388,12 @@ export default function Reports() {
                     <XAxis dataKey="name" />
                     <YAxis />
                     <Tooltip 
-                      formatter={(value) => [`$${value}`, "Savings"]}
+                      formatter={(value) => {
+                        if (typeof value === 'number') {
+                          return [`$${value}`, "Savings"];
+                        }
+                        return [`$${value}`, undefined];
+                      }}
                       contentStyle={{ 
                         backgroundColor: 'white', 
                         border: '1px solid #e2e8f0',

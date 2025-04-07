@@ -136,7 +136,13 @@ export default function Dashboard() {
                   </Pie>
                   <Legend />
                   <Tooltip 
-                    formatter={(value) => [`$${value.toFixed(2)}`, undefined]}
+                    formatter={(value) => {
+                      // Type check and handle the value appropriately
+                      if (typeof value === 'number') {
+                        return [`$${value.toFixed(2)}`, undefined];
+                      }
+                      return [`$${value}`, undefined];
+                    }}
                     labelStyle={{ color: '#1A1F2C' }}
                     contentStyle={{ 
                       backgroundColor: 'white', 
