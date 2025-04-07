@@ -12,14 +12,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Camera, MessageSquare, ScanSearch, Upload, AlertCircle } from "lucide-react";
+import { Camera, MessageSquare, ScanSearch, Upload, AlertCircle, Receipt } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function ImportData() {
   const { toast } = useToast();
   const [fileSelected, setFileSelected] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSource, setSelectedSource] = useState("generic");
+  
+  // State for receipt scanning
+  const [receiptImage, setReceiptImage] = useState<File | null>(null);
+  const [extractedData, setExtractedData] = useState<{
+    merchant: string;
+    amount: string;
+    date: string;
+    items?: string[];
+  } | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -63,6 +73,68 @@ export default function ImportData() {
     }, 2000);
   };
 
+  // Receipt image processing
+  const handleReceiptImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setReceiptImage(e.target.files[0]);
+      setExtractedData(null); // Reset extracted data when new image is selected
+    }
+  };
+
+  const handleScanReceipt = () => {
+    if (!receiptImage) {
+      toast({
+        title: "No receipt image selected",
+        description: "Please select an image of your receipt",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    
+    // Simulate OCR processing with example extracted data
+    setTimeout(() => {
+      setIsLoading(false);
+      
+      // Mock extracted data (in a real app this would come from OCR API)
+      const mockExtractedData = {
+        merchant: "Coffee Shop",
+        amount: "15.99",
+        date: "2025-04-07",
+        items: ["Latte", "Croissant"]
+      };
+      
+      setExtractedData(mockExtractedData);
+      
+      toast({
+        title: "Receipt Processed Successfully",
+        description: "Transaction details have been extracted from your receipt.",
+      });
+    }, 2000);
+  };
+
+  // Function to save extracted receipt data
+  const handleSaveReceiptData = () => {
+    if (!extractedData) return;
+    
+    setIsLoading(true);
+    
+    // Simulate saving the extracted receipt data
+    setTimeout(() => {
+      setIsLoading(false);
+      
+      toast({
+        title: "Transaction Saved",
+        description: `Added transaction from ${extractedData.merchant} for $${extractedData.amount}`,
+      });
+      
+      // Reset for next scan
+      setReceiptImage(null);
+      setExtractedData(null);
+    }, 1000);
+  };
+
   // Render help text based on selected source
   const renderSourceHelp = () => {
     if (selectedSource === "wechat") {
@@ -88,19 +160,6 @@ export default function ImportData() {
     return null;
   };
 
-  const handleScanUpload = () => {
-    setIsLoading(true);
-    
-    // Simulate OCR processing
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: "Scan Processed",
-        description: "Receipt data has been extracted successfully.",
-      });
-    }, 2000);
-  };
-
   const handleSMSConnect = () => {
     setIsLoading(true);
     
@@ -112,6 +171,48 @@ export default function ImportData() {
         description: "Your device is now set up to capture SMS notifications.",
       });
     }, 2000);
+  };
+
+  // Render extracted receipt data preview
+  const renderExtractedDataPreview = () => {
+    if (!extractedData) return null;
+    
+    return (
+      <div className="mt-4 bg-muted/30 p-4 rounded-lg">
+        <h4 className="font-medium mb-2">Extracted Receipt Information</h4>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Merchant:</span>
+            <span className="font-medium">{extractedData.merchant}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Amount:</span>
+            <span className="font-medium">${extractedData.amount}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Date:</span>
+            <span className="font-medium">{extractedData.date}</span>
+          </div>
+          {extractedData.items && extractedData.items.length > 0 && (
+            <div>
+              <span className="text-muted-foreground">Items:</span>
+              <ul className="pl-4 mt-1">
+                {extractedData.items.map((item, index) => (
+                  <li key={index} className="text-sm">{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <Button 
+            className="w-full mt-2" 
+            onClick={handleSaveReceiptData}
+            disabled={isLoading}
+          >
+            Save Transaction
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -198,11 +299,21 @@ export default function ImportData() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="border rounded-md p-8 text-center">
+              <Alert>
+                <Receipt className="h-4 w-4" />
+                <AlertTitle>Smart Receipt Scanner</AlertTitle>
+                <AlertDescription>
+                  Our AI will analyze your receipt and automatically extract the merchant name, amount, date, and items purchased.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="border rounded-md p-6 text-center">
                 <div className="flex flex-col items-center gap-4">
                   <Camera className="h-12 w-12 text-muted-foreground" />
                   <p className="text-muted-foreground">
-                    Take a photo of your receipt or upload an existing image
+                    {receiptImage 
+                      ? `Selected: ${receiptImage.name}` 
+                      : "Upload a photo of your receipt or capture one with your camera"}
                   </p>
                   <div className="grid gap-2 w-full max-w-sm">
                     <Input 
@@ -210,16 +321,19 @@ export default function ImportData() {
                       type="file" 
                       accept="image/*" 
                       capture="environment"
+                      onChange={handleReceiptImageChange}
                     />
                     <Button 
-                      onClick={handleScanUpload}
-                      disabled={isLoading}
+                      onClick={handleScanReceipt}
+                      disabled={isLoading || !receiptImage}
                     >
-                      {isLoading ? "Processing..." : "Scan Receipt"}
+                      {isLoading ? "Processing..." : "Extract Receipt Data"}
                     </Button>
                   </div>
                 </div>
               </div>
+              
+              {renderExtractedDataPreview()}
               
               <div className="bg-muted/30 rounded-lg p-4">
                 <div className="flex items-start gap-3">
@@ -227,8 +341,14 @@ export default function ImportData() {
                   <div>
                     <h4 className="font-medium">How OCR Works</h4>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Our OCR technology automatically extracts merchant name, date, amount and items from your receipts. The system will try to categorize your expenses based on the detected information.
+                      Our OCR technology analyzes payment receipts and extracts key information:
                     </p>
+                    <ul className="text-sm text-muted-foreground mt-2 space-y-1 list-disc pl-4">
+                      <li>Merchant name and location</li>
+                      <li>Transaction amount and currency</li>
+                      <li>Date and time of purchase</li>
+                      <li>Individual items and their prices</li>
+                    </ul>
                   </div>
                 </div>
               </div>
