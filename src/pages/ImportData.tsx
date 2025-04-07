@@ -12,18 +12,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Camera, MessageSquare, ScanSearch, Upload } from "lucide-react";
+import { Camera, MessageSquare, ScanSearch, Upload, AlertCircle } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 
 export default function ImportData() {
   const { toast } = useToast();
   const [fileSelected, setFileSelected] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedSource, setSelectedSource] = useState("generic");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setFileSelected(e.target.files[0]);
     }
+  };
+
+  const handleSourceChange = (value: string) => {
+    setSelectedSource(value);
   };
 
   const handleFileUpload = () => {
@@ -38,15 +43,49 @@ export default function ImportData() {
 
     setIsLoading(true);
     
-    // Simulate file upload
+    // Simulate file upload with different processing based on source
     setTimeout(() => {
       setIsLoading(false);
-      toast({
-        title: "Upload Successful",
-        description: `File "${fileSelected.name}" has been uploaded and processed.`,
-      });
+      
+      if (selectedSource === "wechat") {
+        toast({
+          title: "WeChat Pay Import Successful",
+          description: `Processed ${fileSelected.name} and imported 24 transactions from WeChat Pay.`,
+        });
+      } else {
+        toast({
+          title: "Upload Successful",
+          description: `File "${fileSelected.name}" has been uploaded and processed.`,
+        });
+      }
+      
       setFileSelected(null);
     }, 2000);
+  };
+
+  // Render help text based on selected source
+  const renderSourceHelp = () => {
+    if (selectedSource === "wechat") {
+      return (
+        <div className="bg-muted/30 rounded-lg p-4 mt-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
+            <div>
+              <h4 className="font-medium">How to export WeChat Pay transactions</h4>
+              <ol className="text-sm text-muted-foreground mt-1 space-y-1 list-decimal pl-4">
+                <li>Open WeChat and go to "Me" &gt; "Pay"</li>
+                <li>Tap on "Wallet" &gt; "Bills"</li>
+                <li>Click on the filter icon in the top right</li>
+                <li>Select your date range</li>
+                <li>Tap the "Export" button at the bottom</li>
+                <li>Save the file and upload it here</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
   };
 
   const handleScanUpload = () => {
@@ -97,7 +136,7 @@ export default function ImportData() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="source">Source</Label>
-                <Select defaultValue="generic">
+                <Select defaultValue="generic" onValueChange={handleSourceChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select source" />
                   </SelectTrigger>
@@ -108,18 +147,24 @@ export default function ImportData() {
                     <SelectItem value="bank">Bank Statement</SelectItem>
                   </SelectContent>
                 </Select>
+                {renderSourceHelp()}
               </div>
               
               <div className="space-y-2">
                 <Label htmlFor="file">Select File</Label>
                 <div className="grid gap-2">
-                  <div className="border rounded-md p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div 
+                    className="border rounded-md p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => document.getElementById('file')?.click()}
+                  >
                     <div className="flex flex-col items-center gap-2">
                       <Upload className="h-8 w-8 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
                         {fileSelected 
                           ? `Selected: ${fileSelected.name}`
-                          : "Drag and drop or click to upload"
+                          : selectedSource === "wechat" 
+                            ? "Upload your WeChat Pay export file (.csv)"
+                            : "Drag and drop or click to upload"
                         }
                       </p>
                       <Input 
@@ -127,15 +172,16 @@ export default function ImportData() {
                         type="file" 
                         className="hidden" 
                         onChange={handleFileChange}
-                        accept=".csv,.xlsx,.pdf" 
+                        accept={selectedSource === "wechat" ? ".csv" : ".csv,.xlsx,.pdf"} 
                       />
                     </div>
                   </div>
                   <Button 
                     onClick={handleFileUpload} 
                     disabled={isLoading || !fileSelected}
+                    className={selectedSource === "wechat" ? "bg-green-600 hover:bg-green-700" : ""}
                   >
-                    {isLoading ? "Processing..." : "Upload and Process"}
+                    {isLoading ? "Processing..." : selectedSource === "wechat" ? "Import WeChat Transactions" : "Upload and Process"}
                   </Button>
                 </div>
               </div>
