@@ -1,7 +1,20 @@
 
 import { v4 as uuidv4 } from 'uuid';
-import { supabase, DbTransaction } from '../supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { Transaction } from '@/components/transactions/TransactionList';
+
+export type DbTransaction = {
+  id: string;
+  user_id: string | null;
+  date: string;
+  type: 'income' | 'expense';
+  category: string;
+  amount: number;
+  description?: string;
+  created_at: string;
+  merchant_name?: string;
+  imported_from?: 'manual' | 'wechat' | 'receipt' | 'file';
+}
 
 // Convert from DB format to app format
 export const mapDbToTransaction = (dbTransaction: DbTransaction): Transaction => {
@@ -48,7 +61,11 @@ export const fetchTransactions = async (): Promise<Transaction[]> => {
 
 // Add a new transaction
 export const addTransaction = async (transaction: Partial<Transaction>): Promise<Transaction> => {
-  const newTransaction = mapTransactionToDb(transaction);
+  const newTransaction = {
+    ...mapTransactionToDb(transaction),
+    // Ensure the user_id is set to the current user's ID
+    user_id: (await supabase.auth.getUser()).data.user?.id,
+  };
   
   const { data, error } = await supabase
     .from('transactions')
@@ -100,7 +117,12 @@ export const deleteTransaction = async (id: string): Promise<void> => {
 
 // Import multiple transactions at once (for batch imports)
 export const importTransactions = async (transactions: Partial<Transaction>[]): Promise<Transaction[]> => {
-  const dbTransactions = transactions.map(mapTransactionToDb);
+  const userId = (await supabase.auth.getUser()).data.user?.id;
+  
+  const dbTransactions = transactions.map(transaction => ({
+    ...mapTransactionToDb(transaction),
+    user_id: userId,
+  }));
   
   const { data, error } = await supabase
     .from('transactions')
