@@ -5,9 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
-import { Mic, Send, User, Bot, Volume2 } from 'lucide-react';
+import { Mic, Send, User, Bot, Volume2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { fetchTransactions } from '@/lib/db/transactions';
+import { useQuery } from '@tanstack/react-query';
 
 interface Message {
   id: string;
@@ -20,7 +23,7 @@ export default function Assistant() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: "Hello! I'm your AI financial assistant. How can I help you today? You can ask me about your spending, budget, or financial insights.",
+      content: "Hello! I'm your AI financial assistant. I can analyze your transactions and provide personalized financial insights. How can I help you today?",
       sender: 'assistant',
       timestamp: new Date(),
     },
@@ -28,7 +31,14 @@ export default function Assistant() {
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isUpdatingKnowledge, setIsUpdatingKnowledge] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Fetch transactions data using react-query
+  const { data: transactions, isLoading, refetch } = useQuery({
+    queryKey: ['transactions-for-assistant'],
+    queryFn: fetchTransactions,
+  });
   
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -38,7 +48,7 @@ export default function Assistant() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!input.trim()) return;
     
     // Add user message
@@ -53,26 +63,59 @@ export default function Assistant() {
     setInput('');
     setIsProcessing(true);
     
-    // Simulate AI response after delay
-    setTimeout(() => {
-      const mockResponses = [
-        "Based on your recent transactions, you've spent $324 on dining this month, which is 20% more than last month. Would you like to set a budget for this category?",
-        "I see you've been spending consistently on subscription services. You might save $45 per month by canceling unused subscriptions. Would you like me to list them for you?",
-        "Your savings rate this month is 18%, which is excellent! You're on track to meet your annual savings goal by November.",
-        "Looking at your spending patterns, Tuesday seems to be your highest spending day, mostly on food delivery. Consider meal prepping to reduce these costs.",
-        "I notice you haven't categorized some recent transactions. Would you like me to help categorize them using AI?"
-      ];
-      
+    try {
+      // Call the Supabase edge function with the user message and transaction data
+      const { data, error } = await supabase.functions.invoke('finance-assistant', {
+        body: {
+          message: input,
+          transactions: transactions || []
+        }
+      });
+
+      if (error) {
+        console.error('Error calling finance assistant:', error);
+        toast.error('Failed to get a response. Please try again.');
+        throw error;
+      }
+
+      // Add AI response
       const aiMessage: Message = {
         id: Date.now().toString(),
-        content: mockResponses[Math.floor(Math.random() * mockResponses.length)],
+        content: data.response || "I'm sorry, I couldn't process your request at the moment.",
         sender: 'assistant',
         timestamp: new Date(),
       };
       
       setMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      console.error('Error processing message:', error);
+      toast.error('Something went wrong. Please try again.');
+      
+      // Add error message from assistant
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        content: "I'm sorry, I encountered an error while processing your request. Please try again later.",
+        sender: 'assistant',
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsProcessing(false);
-    }, 1500);
+    }
+  };
+
+  const handleUpdateKnowledgeBase = async () => {
+    setIsUpdatingKnowledge(true);
+    try {
+      await refetch();
+      toast.success("Knowledge base updated with latest transaction data!");
+    } catch (error) {
+      console.error('Error updating knowledge base:', error);
+      toast.error('Failed to update knowledge base. Please try again.');
+    } finally {
+      setIsUpdatingKnowledge(false);
+    }
   };
 
   const handleToggleRecording = () => {
@@ -110,7 +153,19 @@ export default function Assistant() {
 
   return (
     <div className="h-[calc(100vh-10rem)] flex flex-col animate-fade-in">
-      <h1 className="text-3xl font-bold tracking-tight mb-6">AI Assistant</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">AI Financial Assistant</h1>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleUpdateKnowledgeBase}
+          disabled={isUpdatingKnowledge || isLoading}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className={cn("h-4 w-4", isUpdatingKnowledge && "animate-spin")} />
+          Update Knowledge Base
+        </Button>
+      </div>
       
       <Card className="flex-1 flex flex-col overflow-hidden">
         <CardContent className="flex-1 flex flex-col p-0">
@@ -204,7 +259,10 @@ export default function Assistant() {
                 className="flex-1"
               />
               
-              <Button onClick={handleSendMessage} disabled={!input.trim()}>
+              <Button 
+                onClick={handleSendMessage} 
+                disabled={!input.trim() || isProcessing}
+              >
                 <Send className="h-5 w-5 mr-2" />
                 Send
               </Button>
@@ -212,7 +270,7 @@ export default function Assistant() {
             
             <div className="mt-2 text-center">
               <p className="text-xs text-muted-foreground">
-                Suggested: "How much did I spend on food this month?" • "Am I on track with my savings goal?" • "Show me my spending trends"
+                Suggested: "What categories am I spending the most on?" • "How does my spending compare to last month?" • "Do I have any unusual transactions recently?"
               </p>
             </div>
           </div>
