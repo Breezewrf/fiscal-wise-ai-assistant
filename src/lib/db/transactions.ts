@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Transaction } from '@/components/transactions/TransactionList';
@@ -249,18 +248,47 @@ export const getFinancialTrends = (transactions: Transaction[]) => {
   const currentSummary = getFinancialSummary(currentMonthTransactions);
   const previousSummary = getFinancialSummary(previousMonthTransactions);
   
+  // Calculate trends with correct sign logic for each metric
+  const incomeTrend = calculatePercentageChange(currentSummary.income, previousSummary.income);
+  
+  // For expenses, increase is negative, decrease is positive (opposite of income)
+  const expensesTrend = calculatePercentageChange(currentSummary.expenses, previousSummary.expenses) * -1;
+  
+  // For balance, calculate normally but check if direction makes sense 
+  // (e.g., moving from negative to positive or vice versa is special case)
+  let balanceTrend;
+  
+  if (previousSummary.balance === 0) {
+    balanceTrend = currentSummary.balance >= 0 ? 100 : -100;
+  } else if (
+    (previousSummary.balance < 0 && currentSummary.balance >= 0) || 
+    (previousSummary.balance > 0 && currentSummary.balance <= 0)
+  ) {
+    // When crossing from negative to positive or vice versa
+    balanceTrend = Math.abs(calculatePercentageChange(
+      Math.abs(currentSummary.balance), 
+      Math.abs(previousSummary.balance)
+    ));
+    
+    // Determine sign
+    balanceTrend = previousSummary.balance < currentSummary.balance ? balanceTrend : -balanceTrend;
+  } else {
+    // Normal case - same sign
+    balanceTrend = calculatePercentageChange(currentSummary.balance, previousSummary.balance);
+  }
+  
   return {
     income: {
       value: currentSummary.income,
-      trend: calculatePercentageChange(currentSummary.income, previousSummary.income)
+      trend: incomeTrend
     },
     expenses: {
       value: currentSummary.expenses,
-      trend: calculatePercentageChange(currentSummary.expenses, previousSummary.expenses)
+      trend: expensesTrend
     },
     balance: {
       value: currentSummary.balance,
-      trend: calculatePercentageChange(currentSummary.balance, previousSummary.balance)
+      trend: balanceTrend
     }
   };
 };

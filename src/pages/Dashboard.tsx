@@ -67,7 +67,7 @@ export default function Dashboard() {
           value={`$${summary.expenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           icon={<ArrowDownRight className="h-5 w-5 text-red-500" />}
           description="Total expenses this month"
-          trend={{ value: trends.expenses.trend, isPositive: trends.expenses.trend <= 0 }}
+          trend={{ value: Math.abs(trends.expenses.trend), isPositive: trends.expenses.trend >= 0 }}
         />
         
         <StatCard 
@@ -75,7 +75,7 @@ export default function Dashboard() {
           value={`$${summary.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           icon={<DollarSign className="h-5 w-5 text-primary" />}
           description="Current balance"
-          trend={{ value: trends.balance.trend, isPositive: trends.balance.trend >= 0 }}
+          trend={{ value: Math.abs(trends.balance.trend), isPositive: trends.balance.trend >= 0 }}
         />
       </div>
       
