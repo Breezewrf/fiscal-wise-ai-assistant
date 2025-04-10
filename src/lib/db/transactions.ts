@@ -1,7 +1,7 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Transaction } from '@/components/transactions/TransactionList';
+import { Database } from '@/integrations/supabase/types';
 
 export type DbTransaction = {
   id: string;
@@ -16,7 +16,6 @@ export type DbTransaction = {
   imported_from?: 'manual' | 'wechat' | 'receipt' | 'file' | null;
 }
 
-// Convert from DB format to app format
 export const mapDbToTransaction = (dbTransaction: DbTransaction): Transaction => {
   return {
     id: dbTransaction.id,
@@ -30,7 +29,6 @@ export const mapDbToTransaction = (dbTransaction: DbTransaction): Transaction =>
   };
 };
 
-// Convert from app format to DB format
 export const mapTransactionToDb = (transaction: Partial<Transaction>): Partial<DbTransaction> => {
   return {
     id: transaction.id || uuidv4(),
@@ -44,7 +42,6 @@ export const mapTransactionToDb = (transaction: Partial<Transaction>): Partial<D
   };
 };
 
-// Fetch all transactions for the current user
 export const fetchTransactions = async (): Promise<Transaction[]> => {
   const { data, error } = await supabase
     .from('transactions')
@@ -56,21 +53,24 @@ export const fetchTransactions = async (): Promise<Transaction[]> => {
     throw error;
   }
 
-  // Add explicit type assertion to ensure we're working with DbTransaction objects
   return (data as DbTransaction[] || []).map(mapDbToTransaction);
 };
 
-// Add a new transaction
 export const addTransaction = async (transaction: Partial<Transaction>): Promise<Transaction> => {
-  // Ensure all required fields are present
   if (!transaction.type || !transaction.category || transaction.amount === undefined) {
     throw new Error('Transaction must include type, category, and amount');
   }
   
   const newTransaction = {
-    ...mapTransactionToDb(transaction),
-    // Ensure the user_id is set to the current user's ID
-    user_id: (await supabase.auth.getUser()).data.user?.id,
+    id: transaction.id || uuidv4(),
+    user_id: (await supabase.auth.getUser()).data.user?.id || null,
+    date: transaction.date ? transaction.date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    type: transaction.type,
+    category: transaction.category,
+    amount: transaction.amount,
+    description: transaction.description || null,
+    merchant_name: transaction.merchant || null,
+    imported_from: transaction.importedFrom || null
   };
   
   const { data, error } = await supabase
@@ -87,7 +87,6 @@ export const addTransaction = async (transaction: Partial<Transaction>): Promise
   return mapDbToTransaction(data as DbTransaction);
 };
 
-// Update an existing transaction
 export const updateTransaction = async (id: string, updates: Partial<Transaction>): Promise<Transaction> => {
   const updatedFields = mapTransactionToDb(updates);
   
@@ -106,7 +105,6 @@ export const updateTransaction = async (id: string, updates: Partial<Transaction
   return mapDbToTransaction(data as DbTransaction);
 };
 
-// Delete a transaction
 export const deleteTransaction = async (id: string): Promise<void> => {
   const { error } = await supabase
     .from('transactions')
@@ -119,11 +117,9 @@ export const deleteTransaction = async (id: string): Promise<void> => {
   }
 };
 
-// Import multiple transactions at once (for batch imports)
 export const importTransactions = async (transactions: Partial<Transaction>[]): Promise<Transaction[]> => {
   const userId = (await supabase.auth.getUser()).data.user?.id;
   
-  // Ensure all transactions have required fields
   const validTransactions = transactions.filter(t => 
     t.type && t.category && t.amount !== undefined
   );
@@ -132,10 +128,16 @@ export const importTransactions = async (transactions: Partial<Transaction>[]): 
     throw new Error('No valid transactions to import');
   }
   
-  // Map each transaction to DB format and ensure user_id is set
   const dbTransactions = validTransactions.map(transaction => ({
-    ...mapTransactionToDb(transaction),
-    user_id: userId,
+    id: transaction.id || uuidv4(),
+    user_id: userId || null,
+    date: transaction.date ? transaction.date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    type: transaction.type as 'income' | 'expense',
+    category: transaction.category as string,
+    amount: transaction.amount as number,
+    description: transaction.description || null,
+    merchant_name: transaction.merchant || null,
+    imported_from: transaction.importedFrom || null
   }));
   
   const { data, error } = await supabase
@@ -151,7 +153,6 @@ export const importTransactions = async (transactions: Partial<Transaction>[]): 
   return (data as DbTransaction[] || []).map(mapDbToTransaction);
 };
 
-// Get financial summary from transactions
 export const getFinancialSummary = (transactions: Transaction[]) => {
   const income = transactions
     .filter(t => t.type === 'income')
@@ -168,7 +169,6 @@ export const getFinancialSummary = (transactions: Transaction[]) => {
   };
 };
 
-// Get expenses by category
 export const getExpensesByCategory = (transactions: Transaction[]) => {
   const expensesByCategory: Record<string, number> = {};
   
@@ -184,7 +184,6 @@ export const getExpensesByCategory = (transactions: Transaction[]) => {
     .sort((a, b) => b.amount - a.amount);
 };
 
-// Generate spending trend data from real transactions
 export const generateSpendingTrendData = (transactions: Transaction[]) => {
   const months: Record<string, { income: number; expenses: number }> = {
     'Jan': { income: 0, expenses: 0 },
