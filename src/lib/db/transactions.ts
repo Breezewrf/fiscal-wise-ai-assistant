@@ -10,10 +10,10 @@ export type DbTransaction = {
   type: 'income' | 'expense';
   category: string;
   amount: number;
-  description?: string;
+  description?: string | null;
   created_at: string;
-  merchant_name?: string;
-  imported_from?: 'manual' | 'wechat' | 'receipt' | 'file';
+  merchant_name?: string | null;
+  imported_from?: 'manual' | 'wechat' | 'receipt' | 'file' | null;
 }
 
 // Convert from DB format to app format
@@ -24,9 +24,9 @@ export const mapDbToTransaction = (dbTransaction: DbTransaction): Transaction =>
     type: dbTransaction.type,
     category: dbTransaction.category,
     amount: dbTransaction.amount,
-    description: dbTransaction.description,
-    merchant: dbTransaction.merchant_name,
-    importedFrom: dbTransaction.imported_from,
+    description: dbTransaction.description || undefined,
+    merchant: dbTransaction.merchant_name || undefined,
+    importedFrom: dbTransaction.imported_from || undefined,
   };
 };
 
@@ -36,8 +36,8 @@ export const mapTransactionToDb = (transaction: Partial<Transaction>): Partial<D
     id: transaction.id || uuidv4(),
     date: transaction.date ? transaction.date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     type: transaction.type,
-    category: transaction.category,
-    amount: transaction.amount,
+    category: transaction.category || '',
+    amount: transaction.amount || 0,
     description: transaction.description,
     merchant_name: transaction.merchant,
     imported_from: transaction.importedFrom,
@@ -56,11 +56,17 @@ export const fetchTransactions = async (): Promise<Transaction[]> => {
     throw error;
   }
 
-  return (data || []).map(mapDbToTransaction);
+  // Add explicit type assertion to ensure we're working with DbTransaction objects
+  return (data as DbTransaction[] || []).map(mapDbToTransaction);
 };
 
 // Add a new transaction
 export const addTransaction = async (transaction: Partial<Transaction>): Promise<Transaction> => {
+  // Ensure all required fields are present
+  if (!transaction.type || !transaction.category || transaction.amount === undefined) {
+    throw new Error('Transaction must include type, category, and amount');
+  }
+  
   const newTransaction = {
     ...mapTransactionToDb(transaction),
     // Ensure the user_id is set to the current user's ID
@@ -117,7 +123,17 @@ export const deleteTransaction = async (id: string): Promise<void> => {
 export const importTransactions = async (transactions: Partial<Transaction>[]): Promise<Transaction[]> => {
   const userId = (await supabase.auth.getUser()).data.user?.id;
   
-  const dbTransactions = transactions.map(transaction => ({
+  // Ensure all transactions have required fields
+  const validTransactions = transactions.filter(t => 
+    t.type && t.category && t.amount !== undefined
+  );
+  
+  if (validTransactions.length === 0) {
+    throw new Error('No valid transactions to import');
+  }
+  
+  // Map each transaction to DB format and ensure user_id is set
+  const dbTransactions = validTransactions.map(transaction => ({
     ...mapTransactionToDb(transaction),
     user_id: userId,
   }));
@@ -132,7 +148,7 @@ export const importTransactions = async (transactions: Partial<Transaction>[]): 
     throw error;
   }
 
-  return (data || []).map((item) => mapDbToTransaction(item as DbTransaction));
+  return (data as DbTransaction[] || []).map(mapDbToTransaction);
 };
 
 // Get financial summary from transactions
