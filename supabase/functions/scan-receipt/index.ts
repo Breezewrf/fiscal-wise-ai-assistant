@@ -37,7 +37,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "qwen-vl-max-latest",
+        model: "qwen2-vl-7b-instruct",
         messages: [
           {
             role: "system",
