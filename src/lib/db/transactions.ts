@@ -252,8 +252,7 @@ export const getFinancialTrends = (transactions: Transaction[]) => {
   const incomeTrend = calculatePercentageChange(currentSummary.income, previousSummary.income);
   
   // For expenses, increase is negative, decrease is positive (opposite of income)
-  const expensesTrend = calculatePercentageChange(currentSummary.expenses, previousSummary.expenses) * -1;
-  
+  const expensesTrend = calculatePercentageChange(currentSummary.expenses, previousSummary.expenses);
   // For balance, calculate normally but check if direction makes sense 
   // (e.g., moving from negative to positive or vice versa is special case)
   let balanceTrend;
