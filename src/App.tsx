@@ -21,18 +21,6 @@ import { toast } from "sonner";
 const queryClient = new QueryClient();
 
 const App = () => {
-  // Show a notification to connect to Supabase if needed
-  useEffect(() => {
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-      toast.warning(
-        "Supabase connection required",
-        {
-          description: "Please connect to Supabase using the green button at the top right to enable database features.",
-          duration: 10000,
-        }
-      );
-    }
-  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
