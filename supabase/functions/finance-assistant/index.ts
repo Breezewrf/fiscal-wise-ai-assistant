@@ -54,7 +54,7 @@ serve(async (req) => {
         "Authorization": `Bearer ${DASHSCOPE_API_KEY}`
       },
       body: JSON.stringify({
-        model: "qwen-max",
+        model: "qwen-long",
         messages: [
           {
             role: "system",
