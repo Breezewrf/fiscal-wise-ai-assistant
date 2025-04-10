@@ -1,3 +1,4 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Transaction } from '@/components/transactions/TransactionList';
@@ -216,4 +217,50 @@ export const generateSpendingTrendData = (transactions: Transaction[]) => {
     income: data.income,
     expenses: data.expenses,
   }));
+};
+
+// Calculate percentage change between two periods
+export const calculatePercentageChange = (current: number, previous: number): number => {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 100);
+};
+
+// Get trends for dashboard stats
+export const getFinancialTrends = (transactions: Transaction[]) => {
+  // Get current month
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  
+  // Set up date ranges for current and previous months
+  const currentMonthStart = new Date(currentYear, currentMonth, 1);
+  const previousMonthStart = new Date(currentYear, currentMonth - 1, 1);
+  
+  // Filter transactions for current and previous months
+  const currentMonthTransactions = transactions.filter(t => 
+    t.date >= currentMonthStart
+  );
+  
+  const previousMonthTransactions = transactions.filter(t => 
+    t.date >= previousMonthStart && t.date < currentMonthStart
+  );
+  
+  // Calculate summaries
+  const currentSummary = getFinancialSummary(currentMonthTransactions);
+  const previousSummary = getFinancialSummary(previousMonthTransactions);
+  
+  return {
+    income: {
+      value: currentSummary.income,
+      trend: calculatePercentageChange(currentSummary.income, previousSummary.income)
+    },
+    expenses: {
+      value: currentSummary.expenses,
+      trend: calculatePercentageChange(currentSummary.expenses, previousSummary.expenses)
+    },
+    balance: {
+      value: currentSummary.balance,
+      trend: calculatePercentageChange(currentSummary.balance, previousSummary.balance)
+    }
+  };
 };

@@ -29,6 +29,7 @@ import {
   getFinancialSummary,
   generateSpendingTrendData,
   getExpensesByCategory,
+  getFinancialTrends
 } from '@/lib/db/transactions';
 import { generateMockInsights } from '@/lib/mock-data';
 import { useQuery } from '@tanstack/react-query';
@@ -41,6 +42,7 @@ export default function Dashboard() {
   });
   
   const summary = getFinancialSummary(transactions);
+  const trends = getFinancialTrends(transactions);
   const insights = generateMockInsights(transactions);
   const spendingTrendData = generateSpendingTrendData(transactions);
   const expenseBreakdownData = getExpensesByCategory(transactions);
@@ -57,7 +59,7 @@ export default function Dashboard() {
           value={`$${summary.income.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           icon={<ArrowUpRight className="h-5 w-5 text-green-500" />}
           description="Total income this month"
-          trend={{ value: 12, isPositive: true }}
+          trend={{ value: trends.income.trend, isPositive: trends.income.trend >= 0 }}
         />
         
         <StatCard 
@@ -65,7 +67,7 @@ export default function Dashboard() {
           value={`$${summary.expenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           icon={<ArrowDownRight className="h-5 w-5 text-red-500" />}
           description="Total expenses this month"
-          trend={{ value: 8, isPositive: false }}
+          trend={{ value: trends.expenses.trend, isPositive: trends.expenses.trend <= 0 }}
         />
         
         <StatCard 
@@ -73,7 +75,7 @@ export default function Dashboard() {
           value={`$${summary.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           icon={<DollarSign className="h-5 w-5 text-primary" />}
           description="Current balance"
-          trend={{ value: 3, isPositive: true }}
+          trend={{ value: trends.balance.trend, isPositive: trends.balance.trend >= 0 }}
         />
       </div>
       
