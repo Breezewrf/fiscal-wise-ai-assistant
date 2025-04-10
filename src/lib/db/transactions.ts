@@ -78,7 +78,6 @@ export const addTransaction = async (transaction: Partial<Transaction>): Promise
     throw error;
   }
 
-  // Fix: Explicitly cast the data to DbTransaction before mapping
   return mapDbToTransaction(data as DbTransaction);
 };
 
@@ -98,7 +97,6 @@ export const updateTransaction = async (id: string, updates: Partial<Transaction
     throw error;
   }
 
-  // Fix: Explicitly cast the data to DbTransaction before mapping
   return mapDbToTransaction(data as DbTransaction);
 };
 
@@ -134,6 +132,73 @@ export const importTransactions = async (transactions: Partial<Transaction>[]): 
     throw error;
   }
 
-  // Fix: Explicitly cast the data array to DbTransaction[] before mapping
   return (data || []).map((item) => mapDbToTransaction(item as DbTransaction));
+};
+
+// Get financial summary from transactions
+export const getFinancialSummary = (transactions: Transaction[]) => {
+  const income = transactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const expenses = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  return {
+    income,
+    expenses,
+    balance: income - expenses
+  };
+};
+
+// Get expenses by category
+export const getExpensesByCategory = (transactions: Transaction[]) => {
+  const expensesByCategory: Record<string, number> = {};
+  
+  transactions
+    .filter(t => t.type === 'expense')
+    .forEach(transaction => {
+      const category = transaction.category;
+      expensesByCategory[category] = (expensesByCategory[category] || 0) + transaction.amount;
+    });
+  
+  return Object.entries(expensesByCategory)
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount);
+};
+
+// Generate spending trend data from real transactions
+export const generateSpendingTrendData = (transactions: Transaction[]) => {
+  const months: Record<string, { income: number; expenses: number }> = {
+    'Jan': { income: 0, expenses: 0 },
+    'Feb': { income: 0, expenses: 0 },
+    'Mar': { income: 0, expenses: 0 },
+    'Apr': { income: 0, expenses: 0 },
+    'May': { income: 0, expenses: 0 },
+    'Jun': { income: 0, expenses: 0 },
+    'Jul': { income: 0, expenses: 0 },
+    'Aug': { income: 0, expenses: 0 },
+    'Sep': { income: 0, expenses: 0 },
+    'Oct': { income: 0, expenses: 0 },
+    'Nov': { income: 0, expenses: 0 },
+    'Dec': { income: 0, expenses: 0 },
+  };
+  
+  transactions.forEach(transaction => {
+    const date = transaction.date;
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    
+    if (transaction.type === 'income') {
+      months[month].income += transaction.amount;
+    } else {
+      months[month].expenses += transaction.amount;
+    }
+  });
+  
+  return Object.entries(months).map(([name, data]) => ({
+    name,
+    income: data.income,
+    expenses: data.expenses,
+  }));
 };

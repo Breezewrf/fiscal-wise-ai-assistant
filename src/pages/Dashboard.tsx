@@ -26,19 +26,24 @@ import {
 } from 'recharts';
 import { Transaction } from '@/components/transactions/TransactionList';
 import { 
-  generateMockTransactions, 
   getFinancialSummary,
-  generateMockInsights,
   generateSpendingTrendData,
-  generateExpenseBreakdownData
-} from '@/lib/mock-data';
+  getExpensesByCategory,
+} from '@/lib/db/transactions';
+import { generateMockInsights } from '@/lib/mock-data';
+import { useQuery } from '@tanstack/react-query';
+import { fetchTransactions } from '@/lib/db/transactions';
 
 export default function Dashboard() {
-  const [transactions] = useState<Transaction[]>(generateMockTransactions(30));
+  const { data: transactions = [], isLoading } = useQuery({
+    queryKey: ['transactions'],
+    queryFn: fetchTransactions
+  });
+  
   const summary = getFinancialSummary(transactions);
   const insights = generateMockInsights(transactions);
-  const spendingTrendData = generateSpendingTrendData();
-  const expenseBreakdownData = generateExpenseBreakdownData(transactions);
+  const spendingTrendData = generateSpendingTrendData(transactions);
+  const expenseBreakdownData = getExpensesByCategory(transactions);
   
   const COLORS = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D'];
 
@@ -82,27 +87,33 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="h-[300px] w-full p-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={spendingTrendData}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip 
-                    formatter={(value) => [`$${value}`, undefined]}
-                    labelStyle={{ color: '#1A1F2C' }}
-                    contentStyle={{ 
-                      backgroundColor: 'white', 
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Bar dataKey="income" name="Income" fill="#087E8B" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expenses" name="Expenses" fill="#D9A566" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {isLoading ? (
+                <div className="h-full w-full flex items-center justify-center">
+                  <p className="text-muted-foreground">Loading spending data...</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={spendingTrendData}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip 
+                      formatter={(value) => [`$${value}`, undefined]}
+                      labelStyle={{ color: '#1A1F2C' }}
+                      contentStyle={{ 
+                        backgroundColor: 'white', 
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar dataKey="income" name="Income" fill="#087E8B" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="expenses" name="Expenses" fill="#D9A566" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -116,42 +127,51 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="h-[300px] w-full p-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsPieChart>
-                  <Pie
-                    data={expenseBreakdownData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => 
-                      `${name}: ${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {expenseBreakdownData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Legend />
-                  <Tooltip 
-                    formatter={(value) => {
-                      // Type check and handle the value appropriately
-                      if (typeof value === 'number') {
-                        return [`$${value.toFixed(2)}`, undefined];
+              {isLoading ? (
+                <div className="h-full w-full flex items-center justify-center">
+                  <p className="text-muted-foreground">Loading expense data...</p>
+                </div>
+              ) : expenseBreakdownData.length === 0 ? (
+                <div className="h-full w-full flex items-center justify-center">
+                  <p className="text-muted-foreground">No expense data available</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsPieChart>
+                    <Pie
+                      data={expenseBreakdownData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="amount"
+                      label={({ name, percent }) => 
+                        `${name}: ${(percent * 100).toFixed(0)}%`
                       }
-                      return [`$${value}`, undefined];
-                    }}
-                    labelStyle={{ color: '#1A1F2C' }}
-                    contentStyle={{ 
-                      backgroundColor: 'white', 
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px'
-                    }}
-                  />
-                </RechartsPieChart>
-              </ResponsiveContainer>
+                    >
+                      {expenseBreakdownData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Legend />
+                    <Tooltip 
+                      formatter={(value) => {
+                        if (typeof value === 'number') {
+                          return [`$${value.toFixed(2)}`, undefined];
+                        }
+                        return [`$${value}`, undefined];
+                      }}
+                      labelStyle={{ color: '#1A1F2C' }}
+                      contentStyle={{ 
+                        backgroundColor: 'white', 
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px'
+                      }}
+                    />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -166,25 +186,35 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {transactions.slice(0, 5).map(transaction => (
-                <div key={transaction.id} className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="font-medium">{transaction.category}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {new Date(transaction.date).toLocaleDateString()}
+            {isLoading ? (
+              <div className="h-24 flex items-center justify-center">
+                <p className="text-muted-foreground">Loading transactions...</p>
+              </div>
+            ) : transactions.length === 0 ? (
+              <div className="h-24 flex items-center justify-center">
+                <p className="text-muted-foreground">No transactions found</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {transactions.slice(0, 5).map(transaction => (
+                  <div key={transaction.id} className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="font-medium">{transaction.category}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {transaction.date.toLocaleDateString()}
+                      </span>
+                    </div>
+                    <span className={transaction.type === 'income' 
+                      ? "text-green-600 font-medium" 
+                      : "text-red-600 font-medium"
+                    }>
+                      {transaction.type === 'income' ? '+' : '-'}
+                      ${transaction.amount.toFixed(2)}
                     </span>
                   </div>
-                  <span className={transaction.type === 'income' 
-                    ? "text-green-600 font-medium" 
-                    : "text-red-600 font-medium"
-                  }>
-                    {transaction.type === 'income' ? '+' : '-'}
-                    ${transaction.amount.toFixed(2)}
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
         
