@@ -11,9 +11,11 @@ import {
   Upload,
   VolumeX,
   Bell,
-  DatabaseIcon
+  Database
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 type NavItemProps = {
   to: string;
@@ -21,9 +23,24 @@ type NavItemProps = {
   label: string;
   isActive?: boolean;
   onClick?: () => void;
+  disabled?: boolean;
 };
 
-const NavItem = ({ to, icon, label, isActive, onClick }: NavItemProps) => {
+const NavItem = ({ to, icon, label, isActive, onClick, disabled }: NavItemProps) => {
+  if (disabled) {
+    return (
+      <div 
+        className={cn(
+          "flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground opacity-60 cursor-not-allowed"
+        )}
+        title={`${label} - Coming soon`}
+      >
+        {icon}
+        <span className="font-medium">{label}</span>
+      </div>
+    );
+  }
+
   return (
     <NavLink 
       to={to} 
@@ -48,11 +65,16 @@ interface SidebarProps {
 
 export function Sidebar({ isSidebarOpen, onCloseSidebar }: SidebarProps) {
   const isMobile = useIsMobile();
+  const { user } = useAuth();
 
   const handleNavClick = () => {
     if (isMobile) {
       onCloseSidebar();
     }
+  };
+
+  const handleDisabledClick = (feature: string) => {
+    toast(`${feature} feature is coming soon!`);
   };
 
   return (
@@ -104,26 +126,38 @@ export function Sidebar({ isSidebarOpen, onCloseSidebar }: SidebarProps) {
         
         <div className="px-3 pt-6 mt-auto border-t">
           <div className="px-3 py-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Data Sources</h3>
+            <h3 className="text-sm font-medium text-muted-foreground">Settings & Tools</h3>
           </div>
           <div className="space-y-1">
             <NavItem 
-              to="/settings" 
-              icon={<DatabaseIcon size={20} />} 
+              to="/database" 
+              icon={<Database size={20} />} 
               label="Database" 
-              onClick={handleNavClick}
+              onClick={() => {
+                handleDisabledClick("Database");
+                handleNavClick();
+              }}
+              disabled={true}
             />
             <NavItem 
               to="/notifications" 
               icon={<Bell size={20} />} 
               label="Notifications" 
-              onClick={handleNavClick}
+              onClick={() => {
+                handleDisabledClick("Notifications");
+                handleNavClick();
+              }}
+              disabled={true}
             />
             <NavItem 
               to="/voice" 
               icon={<VolumeX size={20} />} 
               label="Voice" 
-              onClick={handleNavClick}
+              onClick={() => {
+                handleDisabledClick("Voice");
+                handleNavClick();
+              }}
+              disabled={true}
             />
             <NavItem 
               to="/settings" 

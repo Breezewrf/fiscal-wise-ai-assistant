@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
@@ -7,11 +6,137 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+
+const profileFormSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().optional(),
+  email: z.string().email("Invalid email address").optional(),
+});
+
+const passwordFormSchema = z.object({
+  currentPassword: z.string().min(6, "Current password is required"),
+  newPassword: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string().min(6, "Confirm password is required"),
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
+
+type ProfileFormValues = z.infer<typeof profileFormSchema>;
+type PasswordFormValues = z.infer<typeof passwordFormSchema>;
 
 export default function Settings() {
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast("Profile settings saved");
+  const { user, session } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [profileData, setProfileData] = useState<{
+    display_name?: string;
+    avatar_url?: string;
+  } | null>(null);
+
+  const profileForm = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileFormSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: user?.email || "",
+    },
+  });
+
+  const passwordForm = useForm<PasswordFormValues>({
+    resolver: zodResolver(passwordFormSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
+  });
+
+  useEffect(() => {
+    async function fetchProfile() {
+      if (!user) return;
+
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('display_name, avatar_url')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          setProfileData(data);
+          
+          if (data.display_name) {
+            const nameParts = data.display_name.split(' ');
+            profileForm.setValue('firstName', nameParts[0] || '');
+            profileForm.setValue('lastName', nameParts.slice(1).join(' ') || '');
+          }
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+        toast("Failed to load profile data");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchProfile();
+  }, [user, profileForm]);
+
+  const handleSaveProfile = async (values: ProfileFormValues) => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const displayName = values.lastName 
+        ? `${values.firstName} ${values.lastName}` 
+        : values.firstName;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          display_name: displayName,
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+      
+      toast("Profile settings saved");
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast("Failed to update profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (values: PasswordFormValues) => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.updateUser({
+        password: values.newPassword,
+      });
+
+      if (error) throw error;
+      
+      toast("Password changed successfully");
+      passwordForm.reset();
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      toast(error.message || "Failed to change password");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSavePreferences = (e: React.FormEvent) => {
@@ -48,41 +173,110 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSaveProfile} className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input id="firstName" defaultValue="Alex" />
+              <Form {...profileForm}>
+                <form onSubmit={profileForm.handleSubmit(handleSaveProfile)} className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={profileForm.control}
+                      name="firstName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>First Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={profileForm.control}
+                      name="lastName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Last Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input id="lastName" defaultValue="Smith" />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue="alex@example.com" />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="currentPassword">Current Password</Label>
-                  <Input id="currentPassword" type="password" />
-                </div>
-                
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword">New Password</Label>
-                    <Input id="newPassword" type="password" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <Input id="confirmPassword" type="password" />
-                  </div>
-                </div>
-                
-                <Button type="submit">Save Changes</Button>
-              </form>
+                  
+                  <FormField
+                    control={profileForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input {...field} disabled type="email" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <Button type="submit" disabled={loading}>
+                    {loading ? "Saving..." : "Save Changes"}
+                  </Button>
+                </form>
+              </Form>
+              
+              <div className="mt-8 pt-6 border-t">
+                <h3 className="text-lg font-medium mb-4">Change Password</h3>
+                <Form {...passwordForm}>
+                  <form onSubmit={passwordForm.handleSubmit(handleChangePassword)} className="space-y-6">
+                    <FormField
+                      control={passwordForm.control}
+                      name="currentPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Current Password</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="password" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <FormField
+                        control={passwordForm.control}
+                        name="newPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>New Password</FormLabel>
+                            <FormControl>
+                              <Input {...field} type="password" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={passwordForm.control}
+                        name="confirmPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Confirm Password</FormLabel>
+                            <FormControl>
+                              <Input {...field} type="password" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    
+                    <Button type="submit" disabled={loading}>
+                      {loading ? "Changing..." : "Change Password"}
+                    </Button>
+                  </form>
+                </Form>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
