@@ -1,73 +1,77 @@
-# Welcome to your Lovable project
+# FiscalWise - AI-Powered Personal Finance Assistant
 
-## Project info
+![React](https://img.shields.io/badge/React-18-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-orange)
 
-**URL**: https://lovable.dev/projects/b1d23425-b392-4201-a85a-ea59e9b9f4ee
+A smart personal finance management app that leverages Vision Language Models (VLM) for automated bill capture and Large Language Models (LLM) for interactive financial advisory, creating a seamless and intelligent personal finance experience.
 
-## How can I edit this code?
+## ✨ Core Features
 
-There are several ways of editing your application.
+- 📝 Intelligent Bill Recognition:
+    - [√] VLM-powered OCR for instant bill/receipt scanning
+    - [√] Real-time extraction of transaction details (amount, date, merchant)
+    - [√] Support for multiple formats (screenshots, photos, digital receipts)
+    - [√] Automatic categorization of expenses
 
-**Use Lovable**
+- 🗂️ Smart Financial Assistant (LLM Integration)
+    - [√] Natural language interaction for financial queries
+    - [ ] Personalized spending analysis and insights
+    - [ ] Budget monitoring and alerts
+    - [ ] Goal-setting assistance and tracking
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b1d23425-b392-4201-a85a-ea59e9b9f4ee) and start prompting.
 
-Changes made via Lovable will be committed automatically to this repo.
+- 📊 Advanced Analytics Dashboard
+- 📱 Mobile-responsive UI
 
-**Use your preferred IDE**
+## 🛠️ Development Setup
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Prerequisites
+- Node.js 18+
+- npm 9+
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Quick Start
+```bash
+# Clone repository
+git clone https://github.com/Breezewrf/fiscal-wise-ai-assistant.git
 
-Follow these steps:
+# Navigate to project
+cd fiscal-wise-ai-assistant
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Install dependencies
+npm install
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Launch dev server
 npm run dev
 ```
+Open `http://localhost:8080/` to view live preview
 
-**Edit a file directly in GitHub**
+## 🔧 Tech Stack
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+| Technology      | Purpose                       |
+|-----------------|-------------------------------|
+| React 18        | Frontend Framework            |
+| TypeScript 5    | Type-safe Development         |
+| Vite 4          | Build Tool                    |
+| shadcn-ui       | UI Component Library          |
+| Tailwind CSS    | Utility-first CSS Framework   |
+| Recharts        | Data Visualization            |
 
-**Use GitHub Codespaces**
+## 🚀 Deployment
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Recommended hosting platforms:
 
-## What technologies are used for this project?
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/your-repo)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/your-username/your-repo)
 
-This project is built with:
+## 🤝 Contributing
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+We welcome contributions via issues and PRs:
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/your-feature`)
+3. Commit changes (`git commit -m 'Add some feature'`)
+4. Push branch (`git push origin feature/your-feature`)
+5. Open a Pull Request
 
-## How can I deploy this project?
+## 📄 License
 
-Simply open [Lovable](https://lovable.dev/projects/b1d23425-b392-4201-a85a-ea59e9b9f4ee) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes it is!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
