@@ -60,8 +60,8 @@ Open `http://localhost:8080/` to view live preview
 
 Recommended hosting platforms:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/your-repo)
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/your-username/your-repo)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/breezewrf/fiscal-wise-ai-assistant)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/breezewrf/fiscal-wise-ai-assistant)
 
 ## 🤝 Contributing
 
