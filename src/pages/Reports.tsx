@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, 
@@ -25,7 +25,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Printer, Share2 } from 'lucide-react';
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Download, Printer, Share2, Calendar as CalendarIcon } from 'lucide-react';
 import { 
   fetchTransactions, 
   getExpensesByCategory,
@@ -33,13 +35,68 @@ import {
 } from '@/lib/db/transactions';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
+import { cn } from "@/lib/utils";
+import { format, isAfter, isBefore, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 
 export default function Reports() {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
+  const [dateRange, setDateRange] = useState<{from: Date, to: Date}>({
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date())
+  });
+  const [isCustomRange, setIsCustomRange] = useState(false);
   
-  const { data: transactions = [], isLoading } = useQuery({
+  // Function to update date range based on the selected period
+  useEffect(() => {
+    const now = new Date();
+    let from: Date;
+    let to: Date = endOfDay(now);
+    
+    switch (selectedPeriod) {
+      case 'week':
+        from = startOfWeek(now);
+        to = endOfWeek(now);
+        break;
+      case 'month':
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+        break;
+      case 'quarter':
+        from = startOfQuarter(now);
+        to = endOfQuarter(now);
+        break;
+      case 'year':
+        from = startOfYear(now);
+        to = endOfYear(now);
+        break;
+      case 'all':
+        from = new Date(2000, 0, 1); // Far in the past
+        to = now;
+        break;
+      case 'custom':
+        setIsCustomRange(true);
+        return; // Don't update the date range here
+      default:
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+    }
+    
+    setDateRange({ from, to });
+    setIsCustomRange(false);
+  }, [selectedPeriod]);
+
+  const { data: allTransactions = [], isLoading } = useQuery({
     queryKey: ['transactions'],
     queryFn: fetchTransactions
+  });
+  
+  // Filter transactions based on date range
+  const transactions = allTransactions.filter(transaction => {
+    const transactionDate = transaction.date;
+    return (
+      isAfter(transactionDate, startOfDay(dateRange.from)) && 
+      isBefore(transactionDate, endOfDay(dateRange.to))
+    );
   });
   
   const categoryData = getExpensesByCategory(transactions);
@@ -48,15 +105,75 @@ export default function Reports() {
   const categoryColors = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D', '#BCA88E', '#8FB9AA', '#F28B66'];
 
   const handleDownload = () => {
+    // Create chart data
+    const jsonData = {
+      summary: {
+        dateRange: `${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}`,
+        categoryData,
+        timelineData
+      }
+    };
+    
+    // Convert to JSON string
+    const jsonString = JSON.stringify(jsonData, null, 2);
+    
+    // Create download link
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `financial-report-${format(new Date(), 'yyyy-MM-dd')}.json`;
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
     toast("Report downloaded successfully");
   };
 
   const handlePrint = () => {
-    toast("Preparing report for printing");
+    window.print();
+    toast("Printing report");
   };
 
   const handleShare = () => {
-    toast("Share dialog opened");
+    // Check if Web Share API is available
+    if (navigator.share) {
+      navigator.share({
+        title: 'Financial Report',
+        text: `Financial report for ${format(dateRange.from, 'MMM d, yyyy')} to ${format(dateRange.to, 'MMM d, yyyy')}`,
+        url: window.location.href,
+      })
+        .then(() => toast("Shared successfully"))
+        .catch((error) => toast("Error sharing: " + error));
+    } else {
+      // Fallback if Web Share API isn't available
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => toast("Report URL copied to clipboard"))
+        .catch(() => toast("Failed to copy URL"));
+    }
+  };
+
+  const formatDateDisplay = () => {
+    if (isCustomRange) {
+      return `${format(dateRange.from, 'MMM d, yyyy')} - ${format(dateRange.to, 'MMM d, yyyy')}`;
+    }
+    
+    switch (selectedPeriod) {
+      case 'week':
+        return 'This Week';
+      case 'month':
+        return 'This Month';
+      case 'quarter':
+        return 'This Quarter';
+      case 'year':
+        return 'This Year';
+      case 'all':
+        return 'All Time';
+      default:
+        return 'Selected Period';
+    }
   };
 
   return (
@@ -75,8 +192,58 @@ export default function Reports() {
               <SelectItem value="quarter">This Quarter</SelectItem>
               <SelectItem value="year">This Year</SelectItem>
               <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
             </SelectContent>
           </Select>
+          
+          {selectedPeriod === 'custom' && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "justify-start text-left font-normal",
+                    !dateRange && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "LLL dd, y")} -{" "}
+                        {format(dateRange.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "LLL dd, y")
+                    )
+                  ) : (
+                    <span>Pick a date</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={{
+                    from: dateRange?.from,
+                    to: dateRange?.to,
+                  }}
+                  onSelect={(range) => {
+                    if (range?.from && range?.to) {
+                      setDateRange({ 
+                        from: range.from, 
+                        to: range.to 
+                      });
+                    }
+                  }}
+                  numberOfMonths={2}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
           
           <div className="flex items-center gap-1">
             <Button variant="outline" size="icon" onClick={handleDownload}>
@@ -104,7 +271,7 @@ export default function Reports() {
             <CardHeader>
               <CardTitle>Financial Summary</CardTitle>
               <CardDescription>
-                Overview of your financial activity for {selectedPeriod === 'month' ? 'this month' : selectedPeriod === 'year' ? 'this year' : 'the selected period'}.
+                Overview of your financial activity for {formatDateDisplay()}.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -141,7 +308,7 @@ export default function Reports() {
                   <div className="h-[300px] w-full">
                     {categoryData.length === 0 ? (
                       <div className="h-full w-full flex items-center justify-center">
-                        <p className="text-muted-foreground">No expense data available</p>
+                        <p className="text-muted-foreground">No expense data available for this period</p>
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
@@ -194,7 +361,7 @@ export default function Reports() {
                 </div>
               ) : categoryData.length === 0 ? (
                 <div className="h-24 flex items-center justify-center">
-                  <p className="text-muted-foreground">No categories found</p>
+                  <p className="text-muted-foreground">No categories found for this period</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -221,7 +388,7 @@ export default function Reports() {
             <CardHeader>
               <CardTitle>Income vs Expenses</CardTitle>
               <CardDescription>
-                Compare your income and expenses over time.
+                Compare your income and expenses for {formatDateDisplay()}.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -263,7 +430,7 @@ export default function Reports() {
             <CardHeader>
               <CardTitle>Spending by Category</CardTitle>
               <CardDescription>
-                Detailed breakdown of your expenses by category.
+                Detailed breakdown of your expenses by category for {formatDateDisplay()}.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -273,7 +440,7 @@ export default function Reports() {
                 </div>
               ) : categoryData.length === 0 ? (
                 <div className="h-[400px] flex items-center justify-center">
-                  <p className="text-muted-foreground">No expense data available</p>
+                  <p className="text-muted-foreground">No expense data available for this period</p>
                 </div>
               ) : (
                 <div className="grid gap-6 md:grid-cols-2">
