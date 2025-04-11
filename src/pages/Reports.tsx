@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -27,7 +26,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Download, Printer, Share2, Calendar as CalendarIcon } from 'lucide-react';
+import { 
+  Download, 
+  Printer, 
+  Share2, 
+  Calendar as CalendarIcon, 
+  FileDown, 
+  Check 
+} from 'lucide-react';
 import { 
   fetchTransactions, 
   getExpensesByCategory,
@@ -37,6 +43,17 @@ import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from "@/lib/utils";
 import { format, isAfter, isBefore, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger
+} from "@/components/ui/dialog";
+import { Drawer, DrawerTrigger, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose } from "@/components/ui/drawer";
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function Reports() {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
@@ -45,8 +62,10 @@ export default function Reports() {
     to: endOfMonth(new Date())
   });
   const [isCustomRange, setIsCustomRange] = useState(false);
+  const [showExportOptions, setShowExportOptions] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'json' | 'csv' | 'pdf'>('json');
+  const isMobile = useIsMobile();
   
-  // Function to update date range based on the selected period
   useEffect(() => {
     const now = new Date();
     let from: Date;
@@ -90,7 +109,6 @@ export default function Reports() {
     queryFn: fetchTransactions
   });
   
-  // Filter transactions based on date range
   const transactions = allTransactions.filter(transaction => {
     const transactionDate = transaction.date;
     return (
@@ -104,54 +122,132 @@ export default function Reports() {
   
   const categoryColors = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D', '#BCA88E', '#8FB9AA', '#F28B66'];
 
-  const handleDownload = () => {
-    // Create chart data
-    const jsonData = {
+  const prepareExportData = () => {
+    const exportData = {
+      reportPeriod: `${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}`,
+      generatedAt: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
       summary: {
-        dateRange: `${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}`,
-        categoryData,
-        timelineData
-      }
+        totalIncome: timelineData.reduce((sum, item) => sum + (item.income || 0), 0),
+        totalExpenses: timelineData.reduce((sum, item) => sum + (item.expenses || 0), 0),
+      },
+      categories: categoryData,
+      transactions: transactions.map(t => ({
+        date: format(t.date, 'yyyy-MM-dd'),
+        type: t.type,
+        category: t.category,
+        amount: t.amount,
+        description: t.description,
+        merchant: t.merchant_name
+      })),
+      timelineData
     };
     
-    // Convert to JSON string
-    const jsonString = JSON.stringify(jsonData, null, 2);
+    return exportData;
+  };
+
+  const convertToCSV = (data: any) => {
+    const headers = ['Date', 'Type', 'Category', 'Amount', 'Description', 'Merchant'];
     
-    // Create download link
-    const blob = new Blob([jsonString], { type: 'application/json' });
+    let csv = headers.join(',') + '\n';
+    
+    data.transactions.forEach((item: any) => {
+      const row = [
+        item.date,
+        item.type,
+        item.category,
+        item.amount,
+        item.description ? `"${item.description.replace(/"/g, '""')}"` : '',
+        item.merchant ? `"${item.merchant.replace(/"/g, '""')}"` : ''
+      ];
+      csv += row.join(',') + '\n';
+    });
+    
+    return csv;
+  };
+
+  const handleDownload = () => {
+    const data = prepareExportData();
+    
+    let blob: Blob;
+    let filename = `financial-report-${format(new Date(), 'yyyy-MM-dd')}`;
+    
+    switch (exportFormat) {
+      case 'csv':
+        const csvData = convertToCSV(data);
+        blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+        filename += '.csv';
+        break;
+      case 'pdf':
+        toast.info("PDF export would require a PDF generation library. Consider using jsPDF or similar library.");
+        setShowExportOptions(false);
+        return;
+      case 'json':
+      default:
+        const jsonString = JSON.stringify(data, null, 2);
+        blob = new Blob([jsonString], { type: 'application/json' });
+        filename += '.json';
+    }
+    
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `financial-report-${format(new Date(), 'yyyy-MM-dd')}.json`;
+    link.download = filename;
     
-    // Trigger download
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     
-    toast("Report downloaded successfully");
+    toast.success(`Report downloaded as ${exportFormat.toUpperCase()}`);
+    setShowExportOptions(false);
   };
 
   const handlePrint = () => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        main, main * {
+          visibility: visible;
+        }
+        header, .print-hide {
+          display: none !important;
+        }
+        main {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    
     window.print();
-    toast("Printing report");
+    
+    document.head.removeChild(style);
+    toast.success("Printing report");
   };
 
   const handleShare = () => {
-    // Check if Web Share API is available
     if (navigator.share) {
       navigator.share({
         title: 'Financial Report',
         text: `Financial report for ${format(dateRange.from, 'MMM d, yyyy')} to ${format(dateRange.to, 'MMM d, yyyy')}`,
         url: window.location.href,
       })
-        .then(() => toast("Shared successfully"))
-        .catch((error) => toast("Error sharing: " + error));
+        .then(() => toast.success("Shared successfully"))
+        .catch((error) => {
+          console.error("Share error:", error);
+          if (error.name !== 'AbortError') {
+            toast.error("Error sharing: " + error.message);
+          }
+        });
     } else {
-      // Fallback if Web Share API isn't available
       navigator.clipboard.writeText(window.location.href)
-        .then(() => toast("Report URL copied to clipboard"))
-        .catch(() => toast("Failed to copy URL"));
+        .then(() => toast.success("Report URL copied to clipboard"))
+        .catch(() => toast.error("Failed to copy URL"));
     }
   };
 
@@ -174,6 +270,48 @@ export default function Reports() {
       default:
         return 'Selected Period';
     }
+  };
+
+  const ExportOptionsContainer = ({ children }: { children: React.ReactNode }) => {
+    if (isMobile) {
+      return (
+        <Drawer open={showExportOptions} onOpenChange={setShowExportOptions}>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>Export Report</DrawerTitle>
+              <DrawerDescription>
+                Choose a format to download your report
+              </DrawerDescription>
+            </DrawerHeader>
+            {children}
+            <DrawerFooter>
+              <Button onClick={handleDownload}>Download</Button>
+              <DrawerClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      );
+    }
+    
+    return (
+      <Dialog open={showExportOptions} onOpenChange={setShowExportOptions}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Report</DialogTitle>
+            <DialogDescription>
+              Choose a format to download your report
+            </DialogDescription>
+          </DialogHeader>
+          {children}
+          <DialogFooter>
+            <Button onClick={handleDownload}>Download</Button>
+            <Button variant="outline" onClick={() => setShowExportOptions(false)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
   };
 
   return (
@@ -246,18 +384,88 @@ export default function Reports() {
           )}
           
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="icon" onClick={handleDownload}>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => setShowExportOptions(true)}
+              className="relative"
+              aria-label="Download report"
+            >
               <Download className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={handlePrint}>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handlePrint}
+              aria-label="Print report"
+            >
               <Printer className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={handleShare}>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handleShare}
+              aria-label="Share report"
+            >
               <Share2 className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </div>
+      
+      <ExportOptionsContainer>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <h4 className="font-medium">Select format</h4>
+            <div className="flex flex-col space-y-1.5">
+              <Button 
+                variant="outline" 
+                className={cn(
+                  "justify-start text-left",
+                  exportFormat === 'json' && "border-primary"
+                )}
+                onClick={() => setExportFormat('json')}
+              >
+                <div className="flex items-center">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  <span>JSON</span>
+                  {exportFormat === 'json' && <Check className="ml-auto h-4 w-4" />}
+                </div>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className={cn(
+                  "justify-start text-left",
+                  exportFormat === 'csv' && "border-primary"
+                )}
+                onClick={() => setExportFormat('csv')}
+              >
+                <div className="flex items-center">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  <span>CSV (Excel)</span>
+                  {exportFormat === 'csv' && <Check className="ml-auto h-4 w-4" />}
+                </div>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className={cn(
+                  "justify-start text-left",
+                  exportFormat === 'pdf' && "border-primary"
+                )}
+                onClick={() => setExportFormat('pdf')}
+              >
+                <div className="flex items-center">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  <span>PDF Document</span>
+                  {exportFormat === 'pdf' && <Check className="ml-auto h-4 w-4" />}
+                </div>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </ExportOptionsContainer>
       
       <Tabs defaultValue="overview">
         <TabsList className="mb-6">
