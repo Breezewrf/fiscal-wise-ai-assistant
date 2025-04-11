@@ -34,6 +34,7 @@ const NavItem = ({ to, icon, label, isActive, onClick, disabled }: NavItemProps)
           "flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground opacity-60 cursor-not-allowed"
         )}
         title={`${label} - Coming soon`}
+        onClick={() => toast.info(`${label} feature coming soon!`)}
       >
         {icon}
         <span className="font-medium">{label}</span>
@@ -74,7 +75,7 @@ export function Sidebar({ isSidebarOpen, onCloseSidebar }: SidebarProps) {
   };
 
   const handleDisabledClick = (feature: string) => {
-    toast(`${feature} feature is coming soon!`);
+    toast.info(`${feature} feature coming soon!`);
   };
 
   return (
@@ -130,33 +131,21 @@ export function Sidebar({ isSidebarOpen, onCloseSidebar }: SidebarProps) {
           </div>
           <div className="space-y-1">
             <NavItem 
-              to="/database" 
+              to="#" 
               icon={<Database size={20} />} 
               label="Database" 
-              onClick={() => {
-                handleDisabledClick("Database");
-                handleNavClick();
-              }}
               disabled={true}
             />
             <NavItem 
-              to="/notifications" 
+              to="#" 
               icon={<Bell size={20} />} 
               label="Notifications" 
-              onClick={() => {
-                handleDisabledClick("Notifications");
-                handleNavClick();
-              }}
               disabled={true}
             />
             <NavItem 
-              to="/voice" 
+              to="#" 
               icon={<VolumeX size={20} />} 
               label="Voice" 
-              onClick={() => {
-                handleDisabledClick("Voice");
-                handleNavClick();
-              }}
               disabled={true}
             />
             <NavItem 
