@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -35,8 +36,7 @@ import {
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from "@/lib/utils";
-import { format, isAfter, isBefore, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, eachDayOfInterval, isSameDay, getDate } from "date-fns";
-import { InteractiveChart } from '@/components/ui/interactive-chart';
+import { format, isAfter, isBefore, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 
 export default function Reports() {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
@@ -45,9 +45,8 @@ export default function Reports() {
     to: endOfMonth(new Date())
   });
   const [isCustomRange, setIsCustomRange] = useState(false);
-  const [detailedTimelineData, setDetailedTimelineData] = useState<any[]>([]);
-  const [showDetailedView, setShowDetailedView] = useState(false);
   
+  // Function to update date range based on the selected period
   useEffect(() => {
     const now = new Date();
     let from: Date;
@@ -91,6 +90,7 @@ export default function Reports() {
     queryFn: fetchTransactions
   });
   
+  // Filter transactions based on date range
   const transactions = allTransactions.filter(transaction => {
     const transactionDate = transaction.date;
     return (
@@ -101,46 +101,11 @@ export default function Reports() {
   
   const categoryData = getExpensesByCategory(transactions);
   const timelineData = generateSpendingTrendData(transactions);
-
-  useEffect(() => {
-    if (transactions.length === 0) {
-      setDetailedTimelineData([]);
-      return;
-    }
-
-    const days = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
-    
-    const dailyData = days.map(day => {
-      const dayTransactions = transactions.filter(t => 
-        isSameDay(t.date, day)
-      );
-      
-      const income = dayTransactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
-      
-      const expenses = dayTransactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
-      
-      return {
-        date: day,
-        name: format(day, 'MMM d'),
-        income,
-        expenses
-      };
-    });
-    
-    setDetailedTimelineData(dailyData);
-  }, [transactions, dateRange]);
-
-  const handleRangeSelect = (startIndex: number, endIndex: number) => {
-    setShowDetailedView(true);
-  };
-
+  
   const categoryColors = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D', '#BCA88E', '#8FB9AA', '#F28B66'];
 
   const handleDownload = () => {
+    // Create chart data
     const jsonData = {
       summary: {
         dateRange: `${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}`,
@@ -149,14 +114,17 @@ export default function Reports() {
       }
     };
     
+    // Convert to JSON string
     const jsonString = JSON.stringify(jsonData, null, 2);
     
+    // Create download link
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `financial-report-${format(new Date(), 'yyyy-MM-dd')}.json`;
     
+    // Trigger download
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -170,6 +138,7 @@ export default function Reports() {
   };
 
   const handleShare = () => {
+    // Check if Web Share API is available
     if (navigator.share) {
       navigator.share({
         title: 'Financial Report',
@@ -179,6 +148,7 @@ export default function Reports() {
         .then(() => toast("Shared successfully"))
         .catch((error) => toast("Error sharing: " + error));
     } else {
+      // Fallback if Web Share API isn't available
       navigator.clipboard.writeText(window.location.href)
         .then(() => toast("Report URL copied to clipboard"))
         .catch(() => toast("Failed to copy URL"));
@@ -203,17 +173,6 @@ export default function Reports() {
         return 'All Time';
       default:
         return 'Selected Period';
-    }
-  };
-
-  const chartConfig = {
-    income: {
-      label: "Income",
-      color: "#087E8B"
-    },
-    expenses: {
-      label: "Expenses",
-      color: "#D9A566"
     }
   };
 
@@ -313,8 +272,6 @@ export default function Reports() {
               <CardTitle>Financial Summary</CardTitle>
               <CardDescription>
                 Overview of your financial activity for {formatDateDisplay()}.
-                {showDetailedView && " Drag to zoom in or click Reset Zoom to view all data."}
-                {!showDetailedView && " Drag on the chart to zoom in on specific periods."}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -325,12 +282,27 @@ export default function Reports() {
               ) : (
                 <div className="grid gap-6 md:grid-cols-2">
                   <div className="h-[300px] w-full">
-                    <InteractiveChart 
-                      data={timelineData}
-                      config={chartConfig}
-                      onRangeSelect={handleRangeSelect}
-                      className="h-full w-full"
-                    />
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={timelineData}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value) => [`$${value}`, undefined]}
+                          contentStyle={{ 
+                            backgroundColor: 'white', 
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '8px'
+                          }}
+                        />
+                        <Legend />
+                        <Line type="monotone" dataKey="income" stroke="#087E8B" activeDot={{ r: 8 }} />
+                        <Line type="monotone" dataKey="expenses" stroke="#D9A566" />
+                      </LineChart>
+                    </ResponsiveContainer>
                   </div>
                   
                   <div className="h-[300px] w-full">
@@ -426,12 +398,27 @@ export default function Reports() {
                 </div>
               ) : (
                 <div className="h-[400px] w-full">
-                  <InteractiveChart 
-                    data={timelineData}
-                    config={chartConfig}
-                    height={400}
-                    className="h-full w-full"
-                  />
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={timelineData}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip 
+                        formatter={(value) => [`$${value}`, undefined]}
+                        contentStyle={{ 
+                          backgroundColor: 'white', 
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="income" name="Income" fill="#087E8B" />
+                      <Bar dataKey="expenses" name="Expenses" fill="#D9A566" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               )}
             </CardContent>
