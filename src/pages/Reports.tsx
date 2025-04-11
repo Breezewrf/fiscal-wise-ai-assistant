@@ -137,7 +137,7 @@ export default function Reports() {
         category: t.category,
         amount: t.amount,
         description: t.description,
-        merchant: t.merchant_name
+        merchant: t.merchant
       })),
       timelineData
     };
