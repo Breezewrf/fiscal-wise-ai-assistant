@@ -22,7 +22,8 @@ export function UserMenu() {
     try {
       await signOut();
       toast.success("Successfully signed out");
-      navigate('/auth');
+      // Force navigation to auth page immediately after sign out
+      navigate('/auth', { replace: true });
     } catch (error) {
       console.error("Error signing out:", error);
       toast.error("Failed to sign out. Please try again.");
