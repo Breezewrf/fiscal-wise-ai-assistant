@@ -8,6 +8,8 @@ import {
   PopoverTrigger
 } from "@/components/ui/popover";
 import { toast } from "sonner";
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -16,6 +18,8 @@ interface HeaderProps {
 export function Header({ onToggleSidebar }: HeaderProps) {
   const [notificationCount, setNotificationCount] = useState(3);
   const [messageCount, setMessageCount] = useState(2);
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
   
   const handleNotificationClick = () => {
     toast.info("Notifications viewed");
@@ -25,6 +29,18 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const handleMessageClick = () => {
     toast.info("Messages viewed");
     setMessageCount(0);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.success("Successfully signed out");
+      // Force navigation to auth page immediately after sign out
+      navigate('/auth', { replace: true });
+    } catch (error) {
+      console.error("Error signing out:", error);
+      toast.error("Failed to sign out. Please try again.");
+    }
   };
 
   return (
@@ -129,7 +145,11 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                     <Button variant="ghost" className="w-full justify-start px-2 h-8">Help & Support</Button>
                   </li>
                   <li className="border-t pt-1 mt-1">
-                    <Button variant="ghost" className="w-full justify-start px-2 h-8 text-destructive">
+                    <Button 
+                      variant="ghost" 
+                      className="w-full justify-start px-2 h-8 text-destructive"
+                      onClick={handleSignOut}
+                    >
                       Sign out
                     </Button>
                   </li>
