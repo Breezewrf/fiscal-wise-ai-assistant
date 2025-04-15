@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, 
@@ -13,7 +13,10 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend
+  Legend,
+  Area,
+  AreaChart,
+  ComposedChart
 } from 'recharts';
 import { 
   Select,
@@ -32,7 +35,13 @@ import {
   Share2, 
   Calendar as CalendarIcon, 
   FileDown, 
-  Check 
+  Check,
+  TrendingUp,
+  TrendingDown,
+  Percent,
+  DollarSign,
+  ChartBarHorizontal,
+  ChartLine
 } from 'lucide-react';
 import { 
   fetchTransactions, 
@@ -42,7 +51,24 @@ import {
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from "@/lib/utils";
-import { format, isAfter, isBefore, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
+import { 
+  format, 
+  isAfter, 
+  isBefore, 
+  startOfDay, 
+  endOfDay, 
+  subDays, 
+  startOfWeek, 
+  endOfWeek, 
+  startOfMonth, 
+  endOfMonth, 
+  startOfQuarter, 
+  endOfQuarter, 
+  startOfYear, 
+  endOfYear,
+  eachDayOfInterval,
+  formatISO
+} from "date-fns";
 import { 
   Dialog,
   DialogContent,
@@ -54,6 +80,14 @@ import {
 } from "@/components/ui/dialog";
 import { Drawer, DrawerTrigger, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose } from "@/components/ui/drawer";
 import { useIsMobile } from '@/hooks/use-mobile';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+
+const CHART_COLORS = {
+  income: '#087E8B',
+  expenses: '#D9A566',
+  savings: '#4CAF50',
+  balance: '#9C27B0'
+};
 
 export default function Reports() {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
@@ -64,6 +98,7 @@ export default function Reports() {
   const [isCustomRange, setIsCustomRange] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv' | 'pdf'>('json');
+  const [analysisView, setAnalysisView] = useState<'daily' | 'weekly'>('daily');
   const isMobile = useIsMobile();
   
   useEffect(() => {
@@ -120,7 +155,128 @@ export default function Reports() {
   const categoryData = getExpensesByCategory(transactions);
   const timelineData = generateSpendingTrendData(transactions);
   
+  // Generate weekly data
+  const weeklyData = useMemo(() => {
+    // Map transactions to daily data first
+    const days = eachDayOfInterval({ 
+      start: dateRange.from,
+      end: dateRange.to
+    });
+    
+    // Initialize data for each day
+    const dailyData = days.map(day => {
+      return {
+        date: day,
+        income: 0,
+        expenses: 0,
+        balance: 0,
+        formattedDate: format(day, 'yyyy-MM-dd')
+      };
+    });
+    
+    // Fill in transaction data
+    transactions.forEach(transaction => {
+      const dateStr = format(transaction.date, 'yyyy-MM-dd');
+      const dayData = dailyData.find(d => d.formattedDate === dateStr);
+      
+      if (dayData) {
+        if (transaction.type === 'income') {
+          dayData.income += transaction.amount;
+        } else if (transaction.type === 'expense') {
+          dayData.expenses += transaction.amount;
+        }
+        dayData.balance = dayData.income - dayData.expenses;
+      }
+    });
+    
+    // Group by weeks
+    const weekMap = new Map();
+    
+    dailyData.forEach(day => {
+      const weekStart = format(startOfWeek(day.date), 'MMM d');
+      const weekEnd = format(endOfWeek(day.date), 'MMM d');
+      const weekKey = `${weekStart} - ${weekEnd}`;
+      
+      if (!weekMap.has(weekKey)) {
+        weekMap.set(weekKey, {
+          name: weekKey,
+          income: 0,
+          expenses: 0,
+          balance: 0,
+          date: day.date,
+        });
+      }
+      
+      const weekData = weekMap.get(weekKey);
+      weekData.income += day.income;
+      weekData.expenses += day.expenses;
+      weekData.balance = weekData.income - weekData.expenses;
+    });
+    
+    // Convert to array and sort by date
+    return Array.from(weekMap.values())
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [transactions, dateRange]);
+  
+  // Generate daily data for current week
+  const dailyDataThisWeek = useMemo(() => {
+    const now = new Date();
+    const weekStart = startOfWeek(now);
+    const weekEnd = endOfWeek(now);
+    
+    const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+    
+    const dailyData = weekDays.map(day => {
+      const dayTransactions = transactions.filter(t => 
+        format(t.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd')
+      );
+      
+      const income = dayTransactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+      const expenses = dayTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      return {
+        name: format(day, 'EEE'),
+        fullDate: format(day, 'MMM dd'),
+        income,
+        expenses,
+        balance: income - expenses
+      };
+    });
+    
+    return dailyData;
+  }, [transactions]);
+  
   const categoryColors = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D', '#BCA88E', '#8FB9AA', '#F28B66'];
+
+  // Financial summary stats
+  const financialSummary = useMemo(() => {
+    const income = transactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0);
+      
+    const expenses = transactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
+      
+    const balance = income - expenses;
+    
+    // Calculate daily averages
+    const days = Math.max(1, Math.round((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)));
+    
+    return {
+      income,
+      expenses,
+      balance,
+      dailyAvgIncome: income / days,
+      dailyAvgExpenses: expenses / days,
+      savingsRate: income > 0 ? ((income - expenses) / income) * 100 : 0
+    };
+  }, [transactions, dateRange]);
 
   const prepareExportData = () => {
     const exportData = {
@@ -139,7 +295,8 @@ export default function Reports() {
         description: t.description,
         merchant: t.merchant
       })),
-      timelineData
+      timelineData,
+      weeklyAnalysis: weeklyData
     };
     
     return exportData;
@@ -467,20 +624,129 @@ export default function Reports() {
         </div>
       </ExportOptionsContainer>
       
+      {/* Financial metrics summary cards */}
+      <div className="grid gap-4 md:grid-cols-4 mb-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Income
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <DollarSign className="h-5 w-5 text-green-500 mr-2" />
+              <div className="text-2xl font-bold">
+                ${financialSummary.income.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Avg ${financialSummary.dailyAvgIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/day
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Expenses
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <DollarSign className="h-5 w-5 text-red-500 mr-2" />
+              <div className="text-2xl font-bold">
+                ${financialSummary.expenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Avg ${financialSummary.dailyAvgExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/day
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Net Balance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              {financialSummary.balance >= 0 ? (
+                <TrendingUp className="h-5 w-5 text-green-500 mr-2" />
+              ) : (
+                <TrendingDown className="h-5 w-5 text-red-500 mr-2" />
+              )}
+              <div className={cn(
+                "text-2xl font-bold",
+                financialSummary.balance >= 0 ? "text-green-600" : "text-red-600"
+              )}>
+                ${Math.abs(financialSummary.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {financialSummary.balance >= 0 ? "Surplus" : "Deficit"} for {formatDateDisplay()}
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Savings Rate
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <Percent className="h-5 w-5 text-primary mr-2" />
+              <div className="text-2xl font-bold">
+                {financialSummary.savingsRate.toFixed(1)}%
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Of total income saved
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+      
       <Tabs defaultValue="overview">
         <TabsList className="mb-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="income-expense">Income vs Expenses</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
+          <TabsTrigger value="weekly">Weekly Analysis</TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Financial Summary</CardTitle>
-              <CardDescription>
-                Overview of your financial activity for {formatDateDisplay()}.
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div>
+                <CardTitle>Financial Summary</CardTitle>
+                <CardDescription>
+                  Overview of your financial activity for {formatDateDisplay()}.
+                </CardDescription>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className={analysisView === 'daily' ? "bg-primary/10" : ""}
+                  onClick={() => setAnalysisView('daily')}
+                >
+                  <ChartLine className="h-4 w-4 mr-1" />
+                  Daily
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className={analysisView === 'weekly' ? "bg-primary/10" : ""}
+                  onClick={() => setAnalysisView('weekly')}
+                >
+                  <ChartBarHorizontal className="h-4 w-4 mr-1" />
+                  Weekly
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -490,27 +756,122 @@ export default function Reports() {
               ) : (
                 <div className="grid gap-6 md:grid-cols-2">
                   <div className="h-[300px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={timelineData}
-                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip 
-                          formatter={(value) => [`$${value}`, undefined]}
-                          contentStyle={{ 
-                            backgroundColor: 'white', 
-                            border: '1px solid #e2e8f0',
-                            borderRadius: '8px'
-                          }}
-                        />
-                        <Legend />
-                        <Line type="monotone" dataKey="income" stroke="#087E8B" activeDot={{ r: 8 }} />
-                        <Line type="monotone" dataKey="expenses" stroke="#D9A566" />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <ChartContainer
+                      className="h-[300px]"
+                      config={{
+                        income: { color: CHART_COLORS.income },
+                        expenses: { color: CHART_COLORS.expenses },
+                        balance: { color: CHART_COLORS.balance }
+                      }}
+                    >
+                      {analysisView === 'daily' ? (
+                        <ComposedChart
+                          data={timelineData}
+                          margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <ChartTooltip 
+                            content={({active, payload}) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="rounded-lg border bg-background p-2 shadow-sm">
+                                    <div className="font-medium">{payload[0].payload.name}</div>
+                                    {payload.map((entry, index) => (
+                                      <div key={`item-${index}`} className="flex items-center justify-between gap-2">
+                                        <span className="flex items-center gap-1">
+                                          <div
+                                            className="h-2 w-2 rounded-full"
+                                            style={{ backgroundColor: entry.color }}
+                                          />
+                                          {entry.name}:
+                                        </span>
+                                        <span className="font-medium">
+                                          ${Number(entry.value).toFixed(2)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="income" fill={CHART_COLORS.income} />
+                          <Bar dataKey="expenses" fill={CHART_COLORS.expenses} />
+                          <Line 
+                            type="monotone" 
+                            dataKey="income" 
+                            stroke={CHART_COLORS.income} 
+                            dot={false} 
+                            activeDot={{ r: 8 }}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="expenses" 
+                            stroke={CHART_COLORS.expenses} 
+                            dot={false} 
+                          />
+                        </ComposedChart>
+                      ) : (
+                        <AreaChart
+                          data={weeklyData}
+                          margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <ChartTooltip 
+                            content={({active, payload}) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="rounded-lg border bg-background p-2 shadow-sm">
+                                    <div className="font-medium">{payload[0].payload.name}</div>
+                                    {payload.map((entry, index) => (
+                                      <div key={`item-${index}`} className="flex items-center justify-between gap-2">
+                                        <span className="flex items-center gap-1">
+                                          <div
+                                            className="h-2 w-2 rounded-full"
+                                            style={{ backgroundColor: entry.color }}
+                                          />
+                                          {entry.name}:
+                                        </span>
+                                        <span className="font-medium">
+                                          ${Number(entry.value).toFixed(2)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="income" 
+                            stroke={CHART_COLORS.income} 
+                            fill={CHART_COLORS.income} 
+                            fillOpacity={0.2}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="expenses" 
+                            stroke={CHART_COLORS.expenses} 
+                            fill={CHART_COLORS.expenses} 
+                            fillOpacity={0.2}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="balance" 
+                            stroke={CHART_COLORS.balance} 
+                            fill={CHART_COLORS.balance} 
+                            fillOpacity={0.2}
+                          />
+                        </AreaChart>
+                      )}
+                    </ChartContainer>
                   </div>
                   
                   <div className="h-[300px] w-full">
@@ -519,7 +880,15 @@ export default function Reports() {
                         <p className="text-muted-foreground">No expense data available for this period</p>
                       </div>
                     ) : (
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ChartContainer
+                        className="h-[300px]"
+                        config={Object.fromEntries(
+                          categoryData.slice(0, 8).map((cat, i) => [
+                            cat.name,
+                            { color: categoryColors[i % categoryColors.length] }
+                          ])
+                        )}
+                      >
                         <PieChart>
                           <Pie
                             data={categoryData.slice(0, 8)}
@@ -536,21 +905,35 @@ export default function Reports() {
                               <Cell key={`cell-${index}`} fill={categoryColors[index % categoryColors.length]} />
                             ))}
                           </Pie>
-                          <Tooltip 
-                            formatter={(value) => {
-                              if (typeof value === 'number') {
-                                return [`$${value.toFixed(2)}`, undefined];
+                          <ChartTooltip 
+                            content={({active, payload}) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="rounded-lg border bg-background p-2 shadow-sm">
+                                    <div className="grid gap-2">
+                                      {payload.map((entry, index) => (
+                                        <div key={`item-${index}`} className="flex items-center justify-between gap-2">
+                                          <span className="flex items-center gap-1">
+                                            <div
+                                              className="h-2 w-2 rounded-full"
+                                              style={{ backgroundColor: entry.color }}
+                                            />
+                                            {entry.name}:
+                                          </span>
+                                          <span className="font-medium">
+                                            ${Number(entry.value).toFixed(2)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
                               }
-                              return [`$${value}`, undefined];
-                            }}
-                            contentStyle={{ 
-                              backgroundColor: 'white', 
-                              border: '1px solid #e2e8f0',
-                              borderRadius: '8px'
+                              return null;
                             }}
                           />
                         </PieChart>
-                      </ResponsiveContainer>
+                      </ChartContainer>
                     )}
                   </div>
                 </div>
@@ -558,168 +941,4 @@ export default function Reports() {
             </CardContent>
           </Card>
           
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Spending Categories</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="h-24 flex items-center justify-center">
-                  <p className="text-muted-foreground">Loading categories...</p>
-                </div>
-              ) : categoryData.length === 0 ? (
-                <div className="h-24 flex items-center justify-center">
-                  <p className="text-muted-foreground">No categories found for this period</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {categoryData.slice(0, 5).map((category, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: categoryColors[index % categoryColors.length] }}
-                        />
-                        <span>{category.name}</span>
-                      </div>
-                      <span className="font-medium">${category.amount.toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="income-expense">
-          <Card>
-            <CardHeader>
-              <CardTitle>Income vs Expenses</CardTitle>
-              <CardDescription>
-                Compare your income and expenses for {formatDateDisplay()}.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="h-[400px] flex items-center justify-center">
-                  <p className="text-muted-foreground">Loading financial data...</p>
-                </div>
-              ) : (
-                <div className="h-[400px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={timelineData}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip 
-                        formatter={(value) => [`$${value}`, undefined]}
-                        contentStyle={{ 
-                          backgroundColor: 'white', 
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '8px'
-                        }}
-                      />
-                      <Legend />
-                      <Bar dataKey="income" name="Income" fill="#087E8B" />
-                      <Bar dataKey="expenses" name="Expenses" fill="#D9A566" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="categories">
-          <Card>
-            <CardHeader>
-              <CardTitle>Spending by Category</CardTitle>
-              <CardDescription>
-                Detailed breakdown of your expenses by category for {formatDateDisplay()}.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="h-[400px] flex items-center justify-center">
-                  <p className="text-muted-foreground">Loading category data...</p>
-                </div>
-              ) : categoryData.length === 0 ? (
-                <div className="h-[400px] flex items-center justify-center">
-                  <p className="text-muted-foreground">No expense data available for this period</p>
-                </div>
-              ) : (
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="h-[400px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={categoryData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={true}
-                          outerRadius={120}
-                          fill="#8884d8"
-                          dataKey="amount"
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {categoryData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={categoryColors[index % categoryColors.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          formatter={(value) => {
-                            if (typeof value === 'number') {
-                              return [`$${value.toFixed(2)}`, undefined];
-                            }
-                            return [`$${value}`, undefined];
-                          }}
-                          contentStyle={{ 
-                            backgroundColor: 'white', 
-                            border: '1px solid #e2e8f0',
-                            borderRadius: '8px'
-                          }}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  
-                  <div>
-                    <div className="space-y-6">
-                      {categoryData.slice(0, 8).map((category, index) => (
-                        <div key={index}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div 
-                                className="w-3 h-3 rounded-full" 
-                                style={{ backgroundColor: categoryColors[index % categoryColors.length] }}
-                              />
-                              <span className="font-medium">{category.name}</span>
-                            </div>
-                            <span className="font-medium">${category.amount.toFixed(2)}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2.5">
-                            <div 
-                              className="h-2.5 rounded-full" 
-                              style={{ 
-                                width: `${categoryData.length > 0 ? (category.amount / categoryData[0].amount) * 100 : 0}%`,
-                                backgroundColor: categoryColors[index % categoryColors.length]
-                              }}
-                            ></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
+          <
