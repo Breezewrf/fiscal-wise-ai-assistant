@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +18,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Transaction } from '@/components/transactions/TransactionList';
 import { importTransactions, addTransaction } from '@/lib/db/transactions';
 import { supabase } from '@/integrations/supabase/client';
+import { Textarea } from "@/components/ui/textarea";
+import { format } from "date-fns";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function ImportData() {
   const { toast } = useToast();
@@ -34,7 +43,7 @@ export default function ImportData() {
   const [extractedData, setExtractedData] = useState<{
     merchant: string;
     amount: string;
-    date: string;
+    date: string | Date;
     items?: string[];
     category?: string;
   } | null>(null);
@@ -186,17 +195,20 @@ export default function ImportData() {
       }
       
       if (data.data) {
+        // Convert string date to Date object for calendar component
+        const dateValue = data.data.date ? new Date(data.data.date) : new Date();
+        
         setExtractedData({
           merchant: data.data.merchant || 'Unknown Merchant',
           amount: data.data.amount?.toString() || '0.00',
-          date: data.data.date || new Date().toISOString().split('T')[0],
+          date: dateValue,
           items: data.data.items || [],
           category: data.data.category || 'Other'
         });
         
         toast({
           title: "Receipt Processed Successfully",
-          description: "Transaction details have been extracted from your receipt.",
+          description: "Transaction details have been extracted from your receipt. You can edit them if needed.",
         });
       } else {
         throw new Error("No data received from receipt scanner");
@@ -213,6 +225,53 @@ export default function ImportData() {
     }
   };
 
+  const handleMerchantChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (extractedData) {
+      setExtractedData({
+        ...extractedData,
+        merchant: e.target.value
+      });
+    }
+  };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (extractedData) {
+      setExtractedData({
+        ...extractedData,
+        amount: e.target.value
+      });
+    }
+  };
+
+  const handleDateChange = (date: Date | undefined) => {
+    if (extractedData && date) {
+      setExtractedData({
+        ...extractedData,
+        date: date
+      });
+    }
+  };
+
+  const handleCategoryChange = (category: string) => {
+    if (extractedData) {
+      setExtractedData({
+        ...extractedData,
+        category
+      });
+    }
+  };
+
+  const handleItemsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (extractedData) {
+      // Split by new lines to create array
+      const items = e.target.value.split('\n').filter(item => item.trim() !== '');
+      setExtractedData({
+        ...extractedData,
+        items
+      });
+    }
+  };
+
   const handleSaveReceiptData = async () => {
     if (!extractedData) return;
     
@@ -221,7 +280,7 @@ export default function ImportData() {
     try {
       // Create a new transaction from the extracted data
       const newTransaction: Partial<Transaction> = {
-        date: new Date(extractedData.date),
+        date: extractedData.date instanceof Date ? extractedData.date : new Date(extractedData.date),
         type: 'expense',
         category: extractedData.category || 'Food & Dining',
         amount: parseFloat(extractedData.amount),
@@ -277,6 +336,118 @@ export default function ImportData() {
     return null;
   };
 
+  const expenseCategories = [
+    "Food & Dining",
+    "Shopping",
+    "Housing",
+    "Transportation",
+    "Entertainment",
+    "Health & Medical",
+    "Personal Care",
+    "Education",
+    "Travel",
+    "Gifts & Donations",
+    "Bills & Utilities",
+    "Other",
+  ];
+
+  const renderExtractedDataPreview = () => {
+    if (!extractedData) return null;
+    
+    return (
+      <div className="mt-4 bg-muted/30 p-4 rounded-lg">
+        <h4 className="font-medium mb-4">Extracted Receipt Information</h4>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="merchant">Merchant</Label>
+            <Input 
+              id="merchant" 
+              value={extractedData.merchant} 
+              onChange={handleMerchantChange}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="amount">Amount</Label>
+            <Input 
+              id="amount" 
+              value={extractedData.amount} 
+              onChange={handleAmountChange}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="date">Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !extractedData.date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {extractedData.date instanceof Date
+                    ? format(extractedData.date, "PPP")
+                    : extractedData.date || "Select date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
+                <Calendar
+                  mode="single"
+                  selected={extractedData.date instanceof Date ? extractedData.date : new Date(extractedData.date)}
+                  onSelect={handleDateChange}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="category">Category</Label>
+            <Select 
+              value={extractedData.category || "Other"} 
+              onValueChange={handleCategoryChange}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {expenseCategories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {extractedData.items && (
+            <div className="space-y-2">
+              <Label htmlFor="items">Items</Label>
+              <Textarea 
+                id="items" 
+                value={extractedData.items.join('\n')}
+                onChange={handleItemsChange}
+                rows={Math.min(5, extractedData.items.length + 1)}
+                className="resize-y"
+              />
+            </div>
+          )}
+          
+          <Button 
+            className="w-full mt-4" 
+            onClick={handleSaveReceiptData}
+            disabled={isLoading}
+          >
+            {isLoading ? "Saving..." : "Save Transaction"}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   const handleSMSConnect = () => {
     setIsLoading(true);
     
@@ -288,51 +459,6 @@ export default function ImportData() {
         description: "Your device is now set up to capture SMS notifications.",
       });
     }, 2000);
-  };
-
-  const renderExtractedDataPreview = () => {
-    if (!extractedData) return null;
-    
-    return (
-      <div className="mt-4 bg-muted/30 p-4 rounded-lg">
-        <h4 className="font-medium mb-2">Extracted Receipt Information</h4>
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Merchant:</span>
-            <span className="font-medium">{extractedData.merchant}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Amount:</span>
-            <span className="font-medium">${extractedData.amount}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Date:</span>
-            <span className="font-medium">{extractedData.date}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Category:</span>
-            <span className="font-medium">{extractedData.category || "Other"}</span>
-          </div>
-          {extractedData.items && extractedData.items.length > 0 && (
-            <div>
-              <span className="text-muted-foreground">Items:</span>
-              <ul className="pl-4 mt-1">
-                {extractedData.items.map((item, index) => (
-                  <li key={index} className="text-sm">{item}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <Button 
-            className="w-full mt-2" 
-            onClick={handleSaveReceiptData}
-            disabled={isLoading}
-          >
-            Save Transaction
-          </Button>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -423,7 +549,7 @@ export default function ImportData() {
                 <Receipt className="h-4 w-4" />
                 <AlertTitle>AI Receipt Scanner</AlertTitle>
                 <AlertDescription>
-                  Our AI will analyze your receipt image and automatically extract the merchant name, amount, date, category, and items purchased.
+                  Our AI will analyze your receipt image and automatically extract the merchant name, amount, date, category, and items purchased. You can edit any details before saving.
                 </AlertDescription>
               </Alert>
               
