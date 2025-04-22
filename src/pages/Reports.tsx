@@ -1,87 +1,13 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  Area,
-  AreaChart,
-  ComposedChart
-} from 'recharts';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { 
-  Download, 
-  Printer, 
-  Share2, 
-  Calendar as CalendarIcon, 
-  FileDown, 
-  Check,
-  TrendingUp,
-  TrendingDown,
-  Percent,
-  DollarSign,
-  ChartBarHorizontal,
-  ChartLine
-} from 'lucide-react';
-import { 
-  fetchTransactions, 
-  getExpensesByCategory,
-  generateSpendingTrendData 
-} from '@/lib/db/transactions';
-import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
-import { cn } from "@/lib/utils";
-import { 
-  format, 
-  isAfter, 
-  isBefore, 
-  startOfDay, 
-  endOfDay, 
-  subDays, 
-  startOfWeek, 
-  endOfWeek, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfQuarter, 
-  endOfQuarter, 
-  startOfYear, 
-  endOfYear,
-  eachDayOfInterval,
-  formatISO
-} from "date-fns";
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogTrigger
-} from "@/components/ui/dialog";
-import { Drawer, DrawerTrigger, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose } from "@/components/ui/drawer";
+import { toast } from 'sonner';
+import { format, isAfter, isBefore, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, eachDayOfInterval } from "date-fns";
 import { useIsMobile } from '@/hooks/use-mobile';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { fetchTransactions, getExpensesByCategory, generateSpendingTrendData } from '@/lib/db/transactions';
+import { ExportOptions } from '@/components/reports/ExportOptions';
+import { MetricCards } from '@/components/reports/MetricCards';
+import { PeriodSelect } from '@/components/reports/PeriodSelect';
+import { ReportTabs } from '@/components/reports/ReportTabs';
 
 const CHART_COLORS = {
   income: '#087E8B',
@@ -156,15 +82,12 @@ export default function Reports() {
   const categoryData = getExpensesByCategory(transactions);
   const timelineData = generateSpendingTrendData(transactions);
   
-  // Generate weekly data
   const weeklyData = useMemo(() => {
-    // Map transactions to daily data first
     const days = eachDayOfInterval({ 
       start: dateRange.from,
       end: dateRange.to
     });
     
-    // Initialize data for each day
     const dailyData = days.map(day => {
       return {
         date: day,
@@ -175,7 +98,6 @@ export default function Reports() {
       };
     });
     
-    // Fill in transaction data
     transactions.forEach(transaction => {
       const dateStr = format(transaction.date, 'yyyy-MM-dd');
       const dayData = dailyData.find(d => d.formattedDate === dateStr);
@@ -190,7 +112,6 @@ export default function Reports() {
       }
     });
     
-    // Group by weeks
     const weekMap = new Map();
     
     dailyData.forEach(day => {
@@ -214,12 +135,10 @@ export default function Reports() {
       weekData.balance = weekData.income - weekData.expenses;
     });
     
-    // Convert to array and sort by date
     return Array.from(weekMap.values())
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [transactions, dateRange]);
   
-  // Generate daily data for current week
   const dailyDataThisWeek = useMemo(() => {
     const now = new Date();
     const weekStart = startOfWeek(now);
@@ -254,7 +173,6 @@ export default function Reports() {
   
   const categoryColors = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D', '#BCA88E', '#8FB9AA', '#F28B66'];
 
-  // Financial summary stats
   const financialSummary = useMemo(() => {
     const income = transactions
       .filter(t => t.type === 'income')
@@ -266,7 +184,6 @@ export default function Reports() {
       
     const balance = income - expenses;
     
-    // Calculate daily averages
     const days = Math.max(1, Math.round((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)));
     
     return {
@@ -430,570 +347,47 @@ export default function Reports() {
     }
   };
 
-  const ExportOptionsContainer = ({ children }: { children: React.ReactNode }) => {
-    if (isMobile) {
-      return (
-        <Drawer open={showExportOptions} onOpenChange={setShowExportOptions}>
-          <DrawerContent>
-            <DrawerHeader>
-              <DrawerTitle>Export Report</DrawerTitle>
-              <DrawerDescription>
-                Choose a format to download your report
-              </DrawerDescription>
-            </DrawerHeader>
-            {children}
-            <DrawerFooter>
-              <Button onClick={handleDownload}>Download</Button>
-              <DrawerClose asChild>
-                <Button variant="outline">Cancel</Button>
-              </DrawerClose>
-            </DrawerFooter>
-          </DrawerContent>
-        </Drawer>
-      );
-    }
-    
-    return (
-      <Dialog open={showExportOptions} onOpenChange={setShowExportOptions}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Export Report</DialogTitle>
-            <DialogDescription>
-              Choose a format to download your report
-            </DialogDescription>
-          </DialogHeader>
-          {children}
-          <DialogFooter>
-            <Button onClick={handleDownload}>Download</Button>
-            <Button variant="outline" onClick={() => setShowExportOptions(false)}>Cancel</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  };
-
   return (
     <div className="animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Financial Reports</h1>
         
-        <div className="flex items-center gap-2">
-          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Select Period" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="week">This Week</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-              <SelectItem value="quarter">This Quarter</SelectItem>
-              <SelectItem value="year">This Year</SelectItem>
-              <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="custom">Custom Range</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          {selectedPeriod === 'custom' && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "justify-start text-left font-normal",
-                    !dateRange && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateRange?.from ? (
-                    dateRange.to ? (
-                      <>
-                        {format(dateRange.from, "LLL dd, y")} -{" "}
-                        {format(dateRange.to, "LLL dd, y")}
-                      </>
-                    ) : (
-                      format(dateRange.from, "LLL dd, y")
-                    )
-                  ) : (
-                    <span>Pick a date</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={dateRange?.from}
-                  selected={{
-                    from: dateRange?.from,
-                    to: dateRange?.to,
-                  }}
-                  onSelect={(range) => {
-                    if (range?.from && range?.to) {
-                      setDateRange({ 
-                        from: range.from, 
-                        to: range.to 
-                      });
-                    }
-                  }}
-                  numberOfMonths={2}
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-          
-          <div className="flex items-center gap-1">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={() => setShowExportOptions(true)}
-              className="relative"
-              aria-label="Download report"
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={handlePrint}
-              aria-label="Print report"
-            >
-              <Printer className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={handleShare}
-              aria-label="Share report"
-            >
-              <Share2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <PeriodSelect
+          selectedPeriod={selectedPeriod}
+          setSelectedPeriod={setSelectedPeriod}
+          dateRange={dateRange}
+          setDateRange={setDateRange}
+          setShowExportOptions={setShowExportOptions}
+          handlePrint={handlePrint}
+          handleShare={handleShare}
+        />
       </div>
       
-      <ExportOptionsContainer>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <h4 className="font-medium">Select format</h4>
-            <div className="flex flex-col space-y-1.5">
-              <Button 
-                variant="outline" 
-                className={cn(
-                  "justify-start text-left",
-                  exportFormat === 'json' && "border-primary"
-                )}
-                onClick={() => setExportFormat('json')}
-              >
-                <div className="flex items-center">
-                  <FileDown className="mr-2 h-4 w-4" />
-                  <span>JSON</span>
-                  {exportFormat === 'json' && <Check className="ml-auto h-4 w-4" />}
-                </div>
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                className={cn(
-                  "justify-start text-left",
-                  exportFormat === 'csv' && "border-primary"
-                )}
-                onClick={() => setExportFormat('csv')}
-              >
-                <div className="flex items-center">
-                  <FileDown className="mr-2 h-4 w-4" />
-                  <span>CSV (Excel)</span>
-                  {exportFormat === 'csv' && <Check className="ml-auto h-4 w-4" />}
-                </div>
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                className={cn(
-                  "justify-start text-left",
-                  exportFormat === 'pdf' && "border-primary"
-                )}
-                onClick={() => setExportFormat('pdf')}
-              >
-                <div className="flex items-center">
-                  <FileDown className="mr-2 h-4 w-4" />
-                  <span>PDF Document</span>
-                  {exportFormat === 'pdf' && <Check className="ml-auto h-4 w-4" />}
-                </div>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </ExportOptionsContainer>
+      <ExportOptions
+        showExportOptions={showExportOptions}
+        setShowExportOptions={setShowExportOptions}
+        exportFormat={exportFormat}
+        setExportFormat={setExportFormat}
+        handleDownload={handleDownload}
+        isMobile={isMobile}
+      />
       
-      {/* Financial metrics summary cards */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Income
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <DollarSign className="h-5 w-5 text-green-500 mr-2" />
-              <div className="text-2xl font-bold">
-                ${financialSummary.income.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Avg ${financialSummary.dailyAvgIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/day
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Expenses
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <DollarSign className="h-5 w-5 text-red-500 mr-2" />
-              <div className="text-2xl font-bold">
-                ${financialSummary.expenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Avg ${financialSummary.dailyAvgExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/day
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Net Balance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              {financialSummary.balance >= 0 ? (
-                <TrendingUp className="h-5 w-5 text-green-500 mr-2" />
-              ) : (
-                <TrendingDown className="h-5 w-5 text-red-500 mr-2" />
-              )}
-              <div className={cn(
-                "text-2xl font-bold",
-                financialSummary.balance >= 0 ? "text-green-600" : "text-red-600"
-              )}>
-                ${Math.abs(financialSummary.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {financialSummary.balance >= 0 ? "Surplus" : "Deficit"} for {formatDateDisplay()}
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Savings Rate
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <Percent className="h-5 w-5 text-primary mr-2" />
-              <div className="text-2xl font-bold">
-                {financialSummary.savingsRate.toFixed(1)}%
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Of total income saved
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <MetricCards
+        financialSummary={financialSummary}
+        formatDateDisplay={formatDateDisplay}
+      />
       
-      <Tabs defaultValue="overview">
-        <TabsList className="mb-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="income-expense">Income vs Expenses</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="weekly">Weekly Analysis</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="overview" className="space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle>Financial Summary</CardTitle>
-                <CardDescription>
-                  Overview of your financial activity for {formatDateDisplay()}.
-                </CardDescription>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className={analysisView === 'daily' ? "bg-primary/10" : ""}
-                  onClick={() => setAnalysisView('daily')}
-                >
-                  <ChartLine className="h-4 w-4 mr-1" />
-                  Daily
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className={analysisView === 'weekly' ? "bg-primary/10" : ""}
-                  onClick={() => setAnalysisView('weekly')}
-                >
-                  <ChartBarHorizontal className="h-4 w-4 mr-1" />
-                  Weekly
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="h-[300px] flex items-center justify-center">
-                  <p className="text-muted-foreground">Loading financial data...</p>
-                </div>
-              ) : (
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="h-[300px] w-full">
-                    <ChartContainer
-                      className="h-[300px]"
-                      config={{
-                        income: { color: CHART_COLORS.income },
-                        expenses: { color: CHART_COLORS.expenses },
-                        balance: { color: CHART_COLORS.balance }
-                      }}
-                    >
-                      {analysisView === 'daily' ? (
-                        <ComposedChart
-                          data={timelineData}
-                          margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="name" />
-                          <YAxis />
-                          <ChartTooltip 
-                            content={({active, payload}) => {
-                              if (active && payload && payload.length) {
-                                return (
-                                  <div className="rounded-lg border bg-background p-2 shadow-sm">
-                                    <div className="font-medium">{payload[0].payload.name}</div>
-                                    {payload.map((entry, index) => (
-                                      <div key={`item-${index}`} className="flex items-center justify-between gap-2">
-                                        <span className="flex items-center gap-1">
-                                          <div
-                                            className="h-2 w-2 rounded-full"
-                                            style={{ backgroundColor: entry.color }}
-                                          />
-                                          {entry.name}:
-                                        </span>
-                                        <span className="font-medium">
-                                          ${Number(entry.value).toFixed(2)}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                          <Bar dataKey="income" fill={CHART_COLORS.income} />
-                          <Bar dataKey="expenses" fill={CHART_COLORS.expenses} />
-                          <Line 
-                            type="monotone" 
-                            dataKey="income" 
-                            stroke={CHART_COLORS.income} 
-                            dot={false} 
-                            activeDot={{ r: 8 }}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="expenses" 
-                            stroke={CHART_COLORS.expenses} 
-                            dot={false} 
-                          />
-                        </ComposedChart>
-                      ) : (
-                        <AreaChart
-                          data={weeklyData}
-                          margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="name" />
-                          <YAxis />
-                          <ChartTooltip 
-                            content={({active, payload}) => {
-                              if (active && payload && payload.length) {
-                                return (
-                                  <div className="rounded-lg border bg-background p-2 shadow-sm">
-                                    <div className="font-medium">{payload[0].payload.name}</div>
-                                    {payload.map((entry, index) => (
-                                      <div key={`item-${index}`} className="flex items-center justify-between gap-2">
-                                        <span className="flex items-center gap-1">
-                                          <div
-                                            className="h-2 w-2 rounded-full"
-                                            style={{ backgroundColor: entry.color }}
-                                          />
-                                          {entry.name}:
-                                        </span>
-                                        <span className="font-medium">
-                                          ${Number(entry.value).toFixed(2)}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                          <Area 
-                            type="monotone" 
-                            dataKey="income" 
-                            stroke={CHART_COLORS.income} 
-                            fill={CHART_COLORS.income} 
-                            fillOpacity={0.2}
-                          />
-                          <Area 
-                            type="monotone" 
-                            dataKey="expenses" 
-                            stroke={CHART_COLORS.expenses} 
-                            fill={CHART_COLORS.expenses} 
-                            fillOpacity={0.2}
-                          />
-                          <Area 
-                            type="monotone" 
-                            dataKey="balance" 
-                            stroke={CHART_COLORS.balance} 
-                            fill={CHART_COLORS.balance} 
-                            fillOpacity={0.2}
-                          />
-                        </AreaChart>
-                      )}
-                    </ChartContainer>
-                  </div>
-                  
-                  <div className="h-[300px] w-full">
-                    {categoryData.length === 0 ? (
-                      <div className="h-full w-full flex items-center justify-center">
-                        <p className="text-muted-foreground">No expense data available for this period</p>
-                      </div>
-                    ) : (
-                      <ChartContainer
-                        className="h-[300px]"
-                        config={Object.fromEntries(
-                          categoryData.slice(0, 8).map((cat, i) => [
-                            cat.name,
-                            { color: categoryColors[i % categoryColors.length] }
-                          ])
-                        )}
-                      >
-                        <PieChart>
-                          <Pie
-                            data={categoryData.slice(0, 8)}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            innerRadius={60}
-                            outerRadius={80}
-                            paddingAngle={5}
-                            dataKey="amount"
-                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                          >
-                            {categoryData.slice(0, 8).map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={categoryColors[index % categoryColors.length]} />
-                            ))}
-                          </Pie>
-                          <ChartTooltip 
-                            content={({active, payload}) => {
-                              if (active && payload && payload.length) {
-                                return (
-                                  <div className="rounded-lg border bg-background p-2 shadow-sm">
-                                    <div className="grid gap-2">
-                                      {payload.map((entry, index) => (
-                                        <div key={`item-${index}`} className="flex items-center justify-between gap-2">
-                                          <span className="flex items-center gap-1">
-                                            <div
-                                              className="h-2 w-2 rounded-full"
-                                              style={{ backgroundColor: entry.color }}
-                                            />
-                                            {entry.name}:
-                                          </span>
-                                          <span className="font-medium">
-                                            ${Number(entry.value).toFixed(2)}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                        </PieChart>
-                      </ChartContainer>
-                    )}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="income-expense" className="space-y-6">
-          {/* Income vs Expense tab content would go here */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Income vs Expenses Analysis</CardTitle>
-              <CardDescription>
-                Compare your income and expenses over time
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[400px]">
-                <p className="text-muted-foreground text-center">Income vs Expense analysis content</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="categories" className="space-y-6">
-          {/* Categories tab content would go here */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Expense Categories</CardTitle>
-              <CardDescription>
-                Breakdown of your spending by category
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[400px]">
-                <p className="text-muted-foreground text-center">Category analysis content</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="weekly" className="space-y-6">
-          {/* Weekly analysis tab content would go here */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Financial Analysis</CardTitle>
-              <CardDescription>
-                Review your weekly financial patterns
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[400px]">
-                <p className="text-muted-foreground text-center">Weekly analysis content</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      <ReportTabs
+        isLoading={isLoading}
+        analysisView={analysisView}
+        setAnalysisView={setAnalysisView}
+        timelineData={timelineData}
+        weeklyData={weeklyData}
+        categoryData={categoryData}
+        categoryColors={categoryColors}
+        chartColors={CHART_COLORS}
+        formatDateDisplay={formatDateDisplay}
+      />
     </div>
   );
 }
