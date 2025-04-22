@@ -588,8 +588,7 @@ export default function ImportData() {
                     <Input 
                       id="receipt" 
                       type="file" 
-                      accept="image/*" 
-                      capture="environment"
+                      accept="image/*"
                       onChange={handleReceiptImageChange}
                       className={receiptImage ? "hidden" : ""}
                     />
