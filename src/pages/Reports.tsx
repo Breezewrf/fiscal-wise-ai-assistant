@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -940,4 +941,59 @@ export default function Reports() {
               )}
             </CardContent>
           </Card>
-        </TabsContent
+        </TabsContent>
+        
+        <TabsContent value="income-expense" className="space-y-6">
+          {/* Income vs Expense tab content would go here */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Income vs Expenses Analysis</CardTitle>
+              <CardDescription>
+                Compare your income and expenses over time
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px]">
+                <p className="text-muted-foreground text-center">Income vs Expense analysis content</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="categories" className="space-y-6">
+          {/* Categories tab content would go here */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Expense Categories</CardTitle>
+              <CardDescription>
+                Breakdown of your spending by category
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px]">
+                <p className="text-muted-foreground text-center">Category analysis content</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="weekly" className="space-y-6">
+          {/* Weekly analysis tab content would go here */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Weekly Financial Analysis</CardTitle>
+              <CardDescription>
+                Review your weekly financial patterns
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px]">
+                <p className="text-muted-foreground text-center">Weekly analysis content</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
