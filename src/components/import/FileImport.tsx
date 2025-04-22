@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,13 +15,14 @@ import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Transaction } from '@/components/transactions/TransactionList';
 import { importTransactions } from '@/lib/db/transactions';
+import Papa from 'papaparse';
 
 export const FileImport = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [fileSelected, setFileSelected] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedSource, setSelectedSource] = useState("generic");
+  const [selectedSource, setSelectedSource] = useState("alipay");
 
   const importTransactionsMutation = useMutation({
     mutationFn: importTransactions,
@@ -41,6 +41,25 @@ export const FileImport = () => {
     setSelectedSource(value);
   };
 
+  const parseAlipayCSV = (results: Papa.ParseResult<any>): Partial<Transaction>[] => {
+    return results.data
+      .filter((row: any) => row['收/支'] === '支出' || row['收/支'] === '收入') // Only process income/expense records
+      .map((row: any) => {
+        const isExpense = row['收/支'] === '支出';
+        const amount = parseFloat(row['金额']);
+        
+        return {
+          date: new Date(row['交易时间']),
+          type: isExpense ? 'expense' : 'income',
+          category: row['交易分类'] || 'Other',
+          amount: amount,
+          description: row['商品说明'] || '',
+          merchant: row['交易对方'] || '',
+          importedFrom: 'alipay'
+        };
+      });
+  };
+
   const handleFileUpload = async () => {
     if (!fileSelected) {
       toast({
@@ -54,40 +73,72 @@ export const FileImport = () => {
     setIsLoading(true);
     
     try {
-      // Mock importing data from file
-      const mockTransactions: Partial<Transaction>[] = [];
-      
-      if (selectedSource === "wechat") {
-        for (let i = 0; i < 5; i++) {
-          mockTransactions.push({
-            date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
-            type: Math.random() > 0.3 ? 'expense' : 'income',
-            category: Math.random() > 0.5 ? 'Shopping' : 'Food & Dining',
-            amount: Math.floor(Math.random() * 100) + 10,
-            description: `WeChat transaction #${i+1}`,
-            merchant: `WeChat Merchant ${i+1}`,
-            importedFrom: 'wechat'
-          });
-        }
+      if (selectedSource === "alipay") {
+        const text = await fileSelected.text();
+        Papa.parse(text, {
+          header: true,
+          encoding: "UTF-8",
+          complete: async (results) => {
+            try {
+              const transactions = parseAlipayCSV(results);
+              await importTransactionsMutation.mutateAsync(transactions);
+              
+              toast({
+                title: "Alipay Import Successful",
+                description: `Processed ${fileSelected.name} and imported ${transactions.length} transactions.`,
+              });
+            } catch (error) {
+              toast({
+                title: "Import Processing Failed",
+                description: `Error: ${(error as Error).message}`,
+                variant: "destructive",
+              });
+            }
+          },
+          error: (error) => {
+            toast({
+              title: "CSV Parsing Failed",
+              description: `Error: ${error.message}`,
+              variant: "destructive",
+            });
+          }
+        });
       } else {
-        for (let i = 0; i < 3; i++) {
-          mockTransactions.push({
-            date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
-            type: Math.random() > 0.3 ? 'expense' : 'income',
-            category: 'Other',
-            amount: Math.floor(Math.random() * 50) + 5,
-            description: `Imported transaction #${i+1}`,
-            importedFrom: 'file'
-          });
+        // Mock importing data from file
+        const mockTransactions: Partial<Transaction>[] = [];
+        
+        if (selectedSource === "wechat") {
+          for (let i = 0; i < 5; i++) {
+            mockTransactions.push({
+              date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
+              type: Math.random() > 0.3 ? 'expense' : 'income',
+              category: Math.random() > 0.5 ? 'Shopping' : 'Food & Dining',
+              amount: Math.floor(Math.random() * 100) + 10,
+              description: `WeChat transaction #${i+1}`,
+              merchant: `WeChat Merchant ${i+1}`,
+              importedFrom: 'wechat'
+            });
+          }
+        } else {
+          for (let i = 0; i < 3; i++) {
+            mockTransactions.push({
+              date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
+              type: Math.random() > 0.3 ? 'expense' : 'income',
+              category: 'Other',
+              amount: Math.floor(Math.random() * 50) + 5,
+              description: `Imported transaction #${i+1}`,
+              importedFrom: 'file'
+            });
+          }
         }
+        
+        await importTransactionsMutation.mutateAsync(mockTransactions);
+        
+        toast({
+          title: `${selectedSource === "wechat" ? "WeChat Pay" : "File"} Import Successful`,
+          description: `Processed ${fileSelected.name} and imported ${mockTransactions.length} transactions.`,
+        });
       }
-      
-      await importTransactionsMutation.mutateAsync(mockTransactions);
-      
-      toast({
-        title: `${selectedSource === "wechat" ? "WeChat Pay" : "File"} Import Successful`,
-        description: `Processed ${fileSelected.name} and imported ${mockTransactions.length} transactions.`,
-      });
     } catch (error) {
       toast({
         title: "Import Failed",
@@ -101,6 +152,26 @@ export const FileImport = () => {
   };
 
   const renderSourceHelp = () => {
+    if (selectedSource === "alipay") {
+      return (
+        <div className="bg-muted/30 rounded-lg p-4 mt-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
+            <div>
+              <h4 className="font-medium">How to export Alipay transactions</h4>
+              <ol className="text-sm text-muted-foreground mt-1 space-y-1 list-decimal pl-4">
+                <li>Open Alipay app and go to "Records"</li>
+                <li>Click on the download icon in the top right</li>
+                <li>Select your date range</li>
+                <li>Choose "Download Transaction Records"</li>
+                <li>Save the CSV file and upload it here</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
     if (selectedSource === "wechat") {
       return (
         <div className="bg-muted/30 rounded-lg p-4 mt-4">
@@ -135,14 +206,14 @@ export const FileImport = () => {
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="source">Source</Label>
-          <Select defaultValue="generic" onValueChange={handleSourceChange}>
+          <Select defaultValue="alipay" onValueChange={handleSourceChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select source" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="generic">Generic CSV</SelectItem>
               <SelectItem value="alipay">Alipay Export</SelectItem>
               <SelectItem value="wechat">WeChat Pay Export</SelectItem>
+              <SelectItem value="generic">Generic CSV</SelectItem>
               <SelectItem value="bank">Bank Statement</SelectItem>
             </SelectContent>
           </Select>
@@ -161,8 +232,8 @@ export const FileImport = () => {
                 <p className="text-sm text-muted-foreground">
                   {fileSelected 
                     ? `Selected: ${fileSelected.name}`
-                    : selectedSource === "wechat" 
-                      ? "Upload your WeChat Pay export file (.csv)"
+                    : selectedSource === "alipay" 
+                      ? "Upload your Alipay export file (.csv)"
                       : "Drag and drop or click to upload"
                   }
                 </p>
@@ -171,16 +242,16 @@ export const FileImport = () => {
                   type="file" 
                   className="hidden" 
                   onChange={handleFileChange}
-                  accept={selectedSource === "wechat" ? ".csv" : ".csv,.xlsx,.pdf"} 
+                  accept=".csv" 
                 />
               </div>
             </div>
             <Button 
               onClick={handleFileUpload} 
               disabled={isLoading || !fileSelected}
-              className={selectedSource === "wechat" ? "bg-green-600 hover:bg-green-700" : ""}
+              className={selectedSource === "alipay" ? "bg-blue-600 hover:bg-blue-700" : ""}
             >
-              {isLoading ? "Processing..." : selectedSource === "wechat" ? "Import WeChat Transactions" : "Upload and Process"}
+              {isLoading ? "Processing..." : selectedSource === "alipay" ? "Import Alipay Transactions" : "Upload and Process"}
             </Button>
           </div>
         </div>
