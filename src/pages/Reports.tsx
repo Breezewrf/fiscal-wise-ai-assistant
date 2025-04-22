@@ -940,5 +940,4 @@ export default function Reports() {
               )}
             </CardContent>
           </Card>
-          
-          <
+        </TabsContent
