@@ -116,6 +116,92 @@ export const FileImport = () => {
       }));
   };
 
+  type WeChatCSVRow = {
+    '微信支付账单明细': string;  // Transaction time
+    '': string;                 // Transaction type
+    '_1': string;              // Merchant
+    '_2': string;              // Description
+    '_3': string;              // Income/Expense
+    '_4': string;              // Amount
+    '_5'?: string;             // Payment method
+    '_6'?: string;             // Status
+    '_7'?: string;             // Transaction ID
+    '_8'?: string;             // Optional field
+    '_9'?: string;             // Optional field
+    '__parsed_extra'?: string[];
+  };
+  
+  const parseWeChatCSV = (results: Papa.ParseResult<WeChatCSVRow>): Partial<Transaction>[] => {
+    console.log("Parsing WeChat CSV", results);
+    
+    // Regular expression for date-time format validation
+    const transactionPattern = /^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}$/;
+    
+    // Filter valid transactions first
+    const validRows = results.data.filter(row => {
+      return transactionPattern.test(row['微信支付账单明细']) &&
+             row[''] !== '' && // Transaction type not empty
+             row['_1'] !== '' && // Merchant not empty
+             row['_2'] !== '' && // Description not empty
+             row['_3'] !== '' && // Income/Expense not empty
+             row['_4'] !== ''; // Amount not empty
+    });
+
+    try {
+      return validRows.map((row) => {
+        const isExpense = row['_3'] === '支出';
+        let amount = 0;
+        try {
+          amount = parseFloat(row['_4'].replace('¥', ''));
+        } catch (error) {
+          console.error('Error parsing amount:', row['_4']);
+          amount = 0;
+        }
+
+        return {
+          date: new Date(row['微信支付账单明细']),
+          type: isExpense ? 'expense' : 'income',
+          category: row[''] || 'Other',
+          amount: amount,
+          description: row['_2'] || '',
+          merchant: row['_1'] || '',
+          importedFrom: 'wechat',
+        };
+      });
+    } catch (error) {
+      console.error('Error parsing WeChat transactions:', error);
+      return [];
+    }
+  };
+
+  const normalizeWeChatTransactions = (wechatTransactions: Partial<Transaction>[]): Partial<Transaction>[] => {
+    if (!wechatTransactions.length) {
+      return [];
+    }
+    
+    return wechatTransactions
+      .filter(txn => {
+        return (
+          txn.type &&
+          typeof txn.type === 'string' &&
+          txn.category &&
+          typeof txn.category === 'string' &&
+          txn.amount !== undefined &&
+          typeof txn.amount === 'number' &&
+          txn.date &&
+          (txn.date instanceof Date || typeof txn.date === 'string')
+        );
+      })
+      .map(txn => ({
+        ...txn,
+        date: txn.date instanceof Date
+          ? txn.date
+          : new Date(txn.date as string),
+        type: txn.type === 'expense' ? 'expense' : 'income',
+        importedFrom: 'file'
+      }));
+  };
+
   const handleEditTransaction = (index: number, field: keyof Transaction, value: any) => {
     setPreviewData(prev => prev ? {
       ...prev,
@@ -164,8 +250,9 @@ export const FileImport = () => {
     setIsLoading(true);
     
     try {
+      const text = await fileSelected.text();
+      
       if (selectedSource === "alipay") {
-        const text = await fileSelected.text();
         Papa.parse<AlipayCSVRow>(text, {
           header: true,
           encoding: "UTF-8",
@@ -199,28 +286,38 @@ export const FileImport = () => {
           }
         });
       } else if (selectedSource === "wechat") {
-        const mockTransactions: Partial<Transaction>[] = [];
-        
-        for (let i = 0; i < 5; i++) {
-          mockTransactions.push({
-            date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
-            type: Math.random() > 0.3 ? 'expense' : 'income',
-            category: Math.random() > 0.5 ? 'Shopping' : 'Food & Dining',
-            amount: Math.floor(Math.random() * 100) + 10,
-            description: `WeChat transaction #${i+1}`,
-            merchant: `WeChat Merchant ${i+1}`,
-            importedFrom: 'wechat'
-          });
-        }
-        setPreviewData({
-          transactions: mockTransactions,
-          totalAmount: mockTransactions.reduce((sum, t) => {
-            const amount = t.amount || 0;
-            return sum + (t.type === 'expense' ? -amount : amount);
-          }, 0),
-          count: mockTransactions.length
+        Papa.parse<WeChatCSVRow>(text, {
+          header: true,
+          encoding: "UTF-8",
+          complete: async (results) => {
+            try {
+              const transactions = parseWeChatCSV(results);
+              const normalized = normalizeWeChatTransactions(transactions);
+              setPreviewData({
+                transactions: normalized,
+                totalAmount: normalized.reduce((sum, t) => {
+                  const amount = t.amount || 0;
+                  return sum + (t.type === 'expense' ? -amount : amount);
+                }, 0),
+                count: normalized.length
+              });
+              setIsPreviewOpen(true);
+            } catch (error) {
+              toast({
+                title: "Parsing Failed",
+                description: `Error: ${(error as Error).message}`,
+                variant: "destructive",
+              });
+            }
+          },
+          error: (error) => {
+            toast({
+              title: "CSV Parsing Failed",
+              description: `Error: ${error.message}`,
+              variant: "destructive",
+            });
+          }
         });
-        setIsPreviewOpen(true);
       }
     } catch (error) {
       toast({
