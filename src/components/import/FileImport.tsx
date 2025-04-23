@@ -74,6 +74,12 @@ export const FileImport = () => {
   };
 
   const normalizeAlipayTransactions = (alipayTransactions: Partial<Transaction>[]): Partial<Transaction>[] => {
+    if (!alipayTransactions.length) {
+      return [];
+    }
+    
+    console.log("Checking valid importedFrom values in database schema");
+    
     return alipayTransactions
       .filter(txn => {
         return (
@@ -93,7 +99,7 @@ export const FileImport = () => {
           ? txn.date
           : new Date(txn.date as string),
         type: txn.type === 'expense' ? 'expense' : 'income',
-        importedFrom: 'alipay',
+        importedFrom: 'file'
       }));
   };
 
@@ -130,7 +136,7 @@ export const FileImport = () => {
             } catch (error) {
               toast({
                 title: "Import Processing Failed",
-                description: `Error: ${(error as Error).message}, transactions: ${JSON.stringify(results.data)}`,
+                description: `Error: ${(error as Error).message}`,
                 variant: "destructive",
               });
             }
@@ -144,7 +150,6 @@ export const FileImport = () => {
           }
         });
       } else {
-        // Mock importing data from file
         const mockTransactions: Partial<Transaction>[] = [];
         
         if (selectedSource === "wechat") {
