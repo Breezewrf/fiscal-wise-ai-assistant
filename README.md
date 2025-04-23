@@ -8,13 +8,16 @@ A smart personal finance management app that leverages Vision Language Models (V
 ## ✨ Core Features
 
 - 📝 Intelligent Bill Recognition:
-    - [√] VLM-powered OCR for instant bill/receipt scanning
-    - [√] Real-time extraction of transaction details (amount, date, merchant)
-    - [√] Support for multiple formats (screenshots, photos, digital receipts)
-    - [√] Automatic categorization of expenses
+    - [x] VLM-powered OCR for instant bill/receipt scanning
+    - [x] Real-time extraction of transaction details (amount, date, merchant)
+    - [ ] Support for multiple formats (screenshots, photos, digital receipts)
+        - [x] Support Alipay transaction auto import
+        - [ ] Support WechatPay transaction autp import
+        - [ ] 
+    - [x] Automatic categorization of expenses
 
 - 🗂️ Smart Financial Assistant (LLM Integration)
-    - [√] Natural language interaction for financial queries
+    - [x] Natural language interaction for financial queries
     - [ ] Personalized spending analysis and insights
     - [ ] Budget monitoring and alerts
     - [ ] Goal-setting assistance and tracking
