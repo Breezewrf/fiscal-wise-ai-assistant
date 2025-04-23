@@ -42,23 +42,37 @@ export const FileImport = () => {
     setSelectedSource(value);
   };
 
-  const parseAlipayCSV = (results: Papa.ParseResult<any>): Partial<Transaction>[] => {
-    return results.data
-      .filter((row: any) => row['收/支'] === '支出' || row['收/支'] === '收入') // Only process income/expense records
-      .map((row: any) => {
-        const isExpense = row['收/支'] === '支出';
-        const amount = parseFloat(row['金额']);
-        
-        return {
-          date: new Date(row['交易时间']),
-          type: isExpense ? 'expense' : 'income',
-          category: row['交易分类'] || 'Other',
-          amount: amount,
-          description: row['商品说明'] || '',
-          merchant: row['交易对方'] || '',
-          importedFrom: 'alipay'
-        };
-      });
+  type AlipayCSVRow = {
+    [key: string]: string | undefined;
+    '------------------------------------------------------------------------------------': string;
+  } & {
+    '__parsed_extra'?: string[] | undefined;
+  };
+
+  const parseAlipayCSV = (results: Papa.ParseResult<AlipayCSVRow>): Partial<Transaction>[] => {
+    // Filter out rows that have valid transaction data and ignore the header row
+    const dataRows = results.data.filter(
+      (row) =>
+        row['------------------------------------------------------------------------------------'] &&
+        row['__parsed_extra'] &&
+        row['------------------------------------------------------------------------------------'] !== '交易时间'
+    );
+
+    return dataRows.map((row) => {
+      const extraFields = row['__parsed_extra'] || [];
+      const isExpense = extraFields[4] === '支出';
+      const amount = parseFloat(extraFields[5]);
+
+      return {
+        date: new Date(row['------------------------------------------------------------------------------------']),
+        type: isExpense ? 'expense' : 'income',
+        category: extraFields[0] || 'Other',
+        amount: amount,
+        description: extraFields[3] || '',
+        merchant: extraFields[1] || '',
+        importedFrom: 'alipay',
+      };
+    });
   };
 
   const handleFileUpload = async () => {
@@ -76,34 +90,36 @@ export const FileImport = () => {
     try {
       if (selectedSource === "alipay") {
         const text = await fileSelected.text();
-        Papa.parse(text, {
-          header: true,
-          encoding: "UTF-8",
-          complete: async (results) => {
-            try {
-              const transactions = parseAlipayCSV(results);
-              await importTransactionsMutation.mutateAsync(transactions);
-              
-              toast({
-                title: "Alipay Import Successful",
-                description: `Processed ${fileSelected.name} and imported ${transactions.length} transactions.`,
-              });
-            } catch (error) {
-              toast({
-                title: "Import Processing Failed",
-                description: `Error: ${(error as Error).message}`,
-                variant: "destructive",
-              });
-            }
-          },
-          error: (error) => {
-            toast({
-              title: "CSV Parsing Failed",
-              description: `Error: ${error.message}`,
-              variant: "destructive",
-            });
-          }
-        });
+        Papa.parse<AlipayCSVRow>(text, {
+                  header: true,
+                  encoding: "UTF-8",
+                  complete: async (results) => {
+                    try {
+                      const transactions = parseAlipayCSV(results);
+                      console.log("Parsed transactions:", transactions);
+                      await importTransactionsMutation.mutateAsync(transactions);
+                      
+                      
+                      toast({
+                        title: "Alipay Import Successful",
+                        description: `Processed ${fileSelected.name} and imported ${transactions.length} transactions.`,
+                      });
+                    } catch (error) {
+                      toast({
+                        title: "Import Processing Failed",
+                        description: `Error: ${(error as Error).message}, transactions: ${JSON.stringify(results.data)}`,
+                        variant: "destructive",
+                      });
+                    }
+                  },
+                  error: (error) => {
+                    toast({
+                      title: "CSV Parsing Failed",
+                      description: `Error: ${error.message}`,
+                      variant: "destructive",
+                    });
+                  }
+                });
       } else {
         // Mock importing data from file
         const mockTransactions: Partial<Transaction>[] = [];
