@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,30 +48,22 @@ export const FileImport = () => {
     '__parsed_extra'?: string[] | undefined;
   };
 
-  const parseAlipayCSV = (results: Papa.ParseResult<AlipayCSVRow>): Partial<Transaction>[] => {
-    // Filter out rows that have valid transaction data and ignore the header row
-    const dataRows = results.data.filter(
-      (row) =>
-        row['------------------------------------------------------------------------------------'] &&
-        row['__parsed_extra'] &&
-        row['------------------------------------------------------------------------------------'] !== '交易时间'
-    );
-
-    return dataRows.map((row) => {
-      const extraFields = row['__parsed_extra'] || [];
-      const isExpense = extraFields[4] === '支出';
-      const amount = parseFloat(extraFields[5]);
-
-      return {
-        date: new Date(row['------------------------------------------------------------------------------------']),
-        type: isExpense ? 'expense' : 'income',
-        category: extraFields[0] || 'Other',
-        amount: amount,
-        description: extraFields[3] || '',
-        merchant: extraFields[1] || '',
-        importedFrom: 'alipay',
-      };
-    });
+  const parseAlipayCSV = (results: Papa.ParseResult<Record<string, string>>): Partial<Transaction>[] => {
+    return results.data
+      .filter(row => row['收/支'] === '支出' || row['收/支'] === '收入')
+      .map(row => {
+        const isExpense = row['收/支'] === '支出';
+        const amount = parseFloat(row['金额']);
+        return {
+          date: new Date(row['交易时间']),
+          type: isExpense ? 'expense' : 'income',
+          category: row['交易分类'] || 'Other',
+          amount: amount,
+          description: row['商品说明'] || '',
+          merchant: row['交易对方'] || '',
+          importedFrom: 'alipay'
+        };
+      });
   };
 
   const handleFileUpload = async () => {
@@ -99,7 +90,6 @@ export const FileImport = () => {
                       console.log("Parsed transactions:", transactions);
                       await importTransactionsMutation.mutateAsync(transactions);
                       
-                      
                       toast({
                         title: "Alipay Import Successful",
                         description: `Processed ${fileSelected.name} and imported ${transactions.length} transactions.`,
@@ -121,7 +111,6 @@ export const FileImport = () => {
                   }
                 });
       } else {
-        // Mock importing data from file
         const mockTransactions: Partial<Transaction>[] = [];
         
         if (selectedSource === "wechat") {
@@ -272,17 +261,19 @@ export const FileImport = () => {
             </Button>
           </div>
         </div>
-        {/* CSV example snippet for Alipay import */}
         {selectedSource === "alipay" && (
           <div className="bg-muted/20 rounded-md p-4 text-sm font-mono whitespace-pre-wrap text-muted-foreground mt-4">
-            <p className="font-semibold mb-2">Example Alipay CSV format:</p>
+            <p className="font-semibold mb-2">Example Alipay CSV format (可复制):</p>
             <pre>
 {`收/支,金额,交易时间,交易分类,商品说明,交易对方
-支出,100.00,2024-04-20,Food & Dining,Coffee Shop,Starbucks
-收入,5000.00,2024-04-18,Salary,Monthly Salary,Company XYZ
-支出,50.00,2024-04-19,Transportation,Taxi Ride,City Taxi
-支出,30.00,2024-04-17,Shopping,Books,Bookstore`}
+支出,17.90,2025-04-21 23:28:38,生活服务,沙县小吃（黄贝岭上村店）-美团App-25042211100400001303055164433618,美团
+收入,0.29,2025-04-21 19:44:24,投资理财,余额宝-2025.04.21-收益发放,博时基金管理有限公司
+支出,52.00,2025-04-20 12:30:15,出行,打车-滴滴出行,滴滴`}
             </pre>
+            <p className="text-xs mt-1 text-muted-foreground">
+              <span className="font-semibold">Required columns</span>: 收/支, 金额, 交易时间, 交易分类, 商品说明, 交易对方<br />
+              <span>Only rows with 收/支 = 支出 or 收入 are imported. Dates in <strong>YYYY-MM-DD HH:mm:ss</strong> are supported.</span>
+            </p>
           </div>
         )}
       </CardContent>
