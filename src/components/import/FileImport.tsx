@@ -21,9 +21,11 @@ import { importTransactions } from '@/lib/db/transactions';
 import Papa from 'papaparse';
 import { format } from "date-fns";
 
+
 export const FileImport = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
   const [fileSelected, setFileSelected] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSource, setSelectedSource] = useState("alipay");
@@ -90,9 +92,7 @@ export const FileImport = () => {
     if (!alipayTransactions.length) {
       return [];
     }
-    
-    console.log("Checking valid importedFrom values in database schema");
-    
+
     return alipayTransactions
       .filter(txn => {
         return (
@@ -106,14 +106,23 @@ export const FileImport = () => {
           (txn.date instanceof Date || typeof txn.date === 'string')
         );
       })
-      .map(txn => ({
-        ...txn,
-        date: txn.date instanceof Date
-          ? txn.date
-          : new Date(txn.date as string),
-        type: txn.type === 'expense' ? 'expense' : 'income',
-        importedFrom: 'file'
-      }));
+      .map(txn => {
+        const dateISO = txn.date instanceof Date
+          ? txn.date.toISOString().slice(0, 10)
+          : (typeof txn.date === "string" && txn.date.length > 10
+              ? txn.date.slice(0, 10)
+              : txn.date);
+
+        return {
+          date: dateISO,
+          type: txn.type === 'expense' ? 'expense' : 'income',
+          category: txn.category,
+          amount: txn.amount,
+          description: txn.description ?? '',
+          merchant_name: txn.merchant_name ?? txn.merchant ?? '',
+          imported_from: txn.importedFrom ?? 'file'
+        };
+      });
   };
 
   const handleEditTransaction = (index: number, field: keyof Transaction, value: any) => {
@@ -160,16 +169,15 @@ export const FileImport = () => {
       });
       return;
     }
-
     setIsLoading(true);
-    
+
     try {
       if (selectedSource === "alipay") {
         const text = await fileSelected.text();
-        Papa.parse<AlipayCSVRow>(text, {
+        Papa.parse(text, {
           header: true,
           encoding: "UTF-8",
-          complete: async (results) => {
+          complete: (results) => {
             try {
               const transactions = parseAlipayCSV(results);
               const normalized = normalizeAlipayTransactions(transactions);
@@ -189,6 +197,7 @@ export const FileImport = () => {
                 variant: "destructive",
               });
             }
+            setIsLoading(false);
           },
           error: (error) => {
             toast({
@@ -196,11 +205,12 @@ export const FileImport = () => {
               description: `Error: ${error.message}`,
               variant: "destructive",
             });
+            setIsLoading(false);
           }
         });
       } else if (selectedSource === "wechat") {
         const mockTransactions: Partial<Transaction>[] = [];
-        
+
         for (let i = 0; i < 5; i++) {
           mockTransactions.push({
             date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
@@ -228,9 +238,58 @@ export const FileImport = () => {
         description: `Error: ${(error as Error).message}`,
         variant: "destructive",
       });
+      setIsLoading(false);
+    }
+  };
+
+  const handlePreviewTransactionChange = (idx: number, updated: Partial<Transaction>) => {
+    setPreviewTransactions((prev) =>
+      prev.map((txn, i) => (i === idx ? { ...txn, ...updated } : txn))
+    );
+  };
+
+  const handleRowRemove = (idx: number) => {
+    setPreviewTransactions((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleImportConfirm = async () => {
+    if (!previewTransactions.length) {
+      toast({
+        title: "No transactions to import",
+        variant: "destructive"
+      });
+      return;
+    }
+    setIsLoading(true);
+
+    try {
+      const validTxns = previewTransactions.filter(
+        (t) =>
+          t.date &&
+          t.type &&
+          t.category &&
+          typeof t.amount === "number" &&
+          t.date.length === 10
+      );
+      if (!validTxns.length) {
+        throw new Error("No valid transactions selected. Make sure all rows are valid");
+      }
+      await importTransactionsMutation.mutateAsync(validTxns);
+      toast({
+        title: "Import Successful",
+        description: `Imported ${validTxns.length} transactions.`,
+      });
+      setShowPreview(false);
+      setPreviewTransactions([]);
+      setFileSelected(null);
+    } catch (error) {
+      toast({
+        title: "Import Failed",
+        description: `Error: ${(error as Error).message}`,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
-      setFileSelected(null);
     }
   };
 
