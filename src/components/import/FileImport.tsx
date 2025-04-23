@@ -1,23 +1,26 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Upload, AlertCircle } from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { ChevronLeft, ChevronRight, AlertCircle, Upload } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Transaction } from '@/components/transactions/TransactionList';
 import { importTransactions } from '@/lib/db/transactions';
 import Papa from 'papaparse';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { TransactionPreviewTable } from "./TransactionPreviewTable";
+import { format } from "date-fns";
+
 
 export const FileImport = () => {
   const { toast } = useToast();
@@ -26,9 +29,15 @@ export const FileImport = () => {
   const [fileSelected, setFileSelected] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSource, setSelectedSource] = useState("alipay");
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewTransactions, setPreviewTransactions] = useState<Partial<Transaction>[]>([]);
-  const [previewPage, setPreviewPage] = useState(1);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<{
+    transactions: Partial<Transaction>[];
+    totalAmount: number;
+    count: number;
+  } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [editingRow, setEditingRow] = useState<number | null>(null);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   const importTransactionsMutation = useMutation({
     mutationFn: importTransactions,
@@ -116,6 +125,41 @@ export const FileImport = () => {
       });
   };
 
+  const handleEditTransaction = (index: number, field: keyof Transaction, value: any) => {
+    setPreviewData(prev => prev ? {
+      ...prev,
+      transactions: prev.transactions.map((item, i) => 
+        i === index ? { ...item, [field]: value } : item
+      )
+    } : null);
+  };
+
+  const handleConfirmImport = async () => {
+    try {
+      if (previewData) {
+        await importTransactionsMutation.mutateAsync(previewData.transactions);
+        toast({
+          title: "Import Successful",
+          description: `Imported ${previewData.transactions.length} transactions.`,
+        });
+        setIsPreviewOpen(false);
+        setPreviewData(null);
+      }
+    } catch (error) {
+      toast({
+        title: "Import Failed",
+        description: `Error: ${(error as Error).message}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const totalPages = Math.ceil((previewData?.transactions.length || 0) / itemsPerPage);
+  const paginatedData = previewData?.transactions.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  ) || [];
+
   const handleFileUpload = async () => {
     if (!fileSelected) {
       toast({
@@ -137,13 +181,18 @@ export const FileImport = () => {
             try {
               const transactions = parseAlipayCSV(results);
               const normalized = normalizeAlipayTransactions(transactions);
-
-              setPreviewTransactions(normalized);
-              setShowPreview(true);
-              setPreviewPage(1);
+              setPreviewData({
+                transactions: normalized,
+                totalAmount: normalized.reduce((sum, t) => {
+                  const amount = t.amount || 0;
+                  return sum + (t.type === 'expense' ? -amount : amount);
+                }, 0),
+                count: normalized.length
+              });
+              setIsPreviewOpen(true);
             } catch (error) {
               toast({
-                title: "Import Processing Failed",
+                title: "Parsing Failed",
                 description: `Error: ${(error as Error).message}`,
                 variant: "destructive",
               });
@@ -159,36 +208,29 @@ export const FileImport = () => {
             setIsLoading(false);
           }
         });
-      } else {
+      } else if (selectedSource === "wechat") {
         const mockTransactions: Partial<Transaction>[] = [];
-        if (selectedSource === "wechat") {
-          for (let i = 0; i < 5; i++) {
-            mockTransactions.push({
-              date: new Date(Date.now() - i * 86400000).toISOString().slice(0, 10),
-              type: Math.random() > 0.3 ? 'expense' : 'income',
-              category: Math.random() > 0.5 ? 'Shopping' : 'Food & Dining',
-              amount: Math.floor(Math.random() * 100) + 10,
-              description: `WeChat transaction #${i+1}`,
-              merchant_name: `WeChat Merchant ${i+1}`,
-              imported_from: 'wechat'
-            });
-          }
-        } else {
-          for (let i = 0; i < 3; i++) {
-            mockTransactions.push({
-              date: new Date(Date.now() - i * 86400000).toISOString().slice(0, 10),
-              type: Math.random() > 0.3 ? 'expense' : 'income',
-              category: 'Other',
-              amount: Math.floor(Math.random() * 50) + 5,
-              description: `Imported transaction #${i+1}`,
-              imported_from: 'file'
-            });
-          }
+
+        for (let i = 0; i < 5; i++) {
+          mockTransactions.push({
+            date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
+            type: Math.random() > 0.3 ? 'expense' : 'income',
+            category: Math.random() > 0.5 ? 'Shopping' : 'Food & Dining',
+            amount: Math.floor(Math.random() * 100) + 10,
+            description: `WeChat transaction #${i+1}`,
+            merchant: `WeChat Merchant ${i+1}`,
+            importedFrom: 'wechat'
+          });
         }
-        setPreviewTransactions(mockTransactions);
-        setShowPreview(true);
-        setPreviewPage(1);
-        setIsLoading(false);
+        setPreviewData({
+          transactions: mockTransactions,
+          totalAmount: mockTransactions.reduce((sum, t) => {
+            const amount = t.amount || 0;
+            return sum + (t.type === 'expense' ? -amount : amount);
+          }, 0),
+          count: mockTransactions.length
+        });
+        setIsPreviewOpen(true);
       }
     } catch (error) {
       toast({
@@ -295,6 +337,35 @@ export const FileImport = () => {
     return null;
   };
 
+  const renderDataPreview = () => {
+    if (!previewData) return null;
+  };
+
+  const renderPageSizeSelector = () => {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">Items per page:</span>
+        <Select
+          value={itemsPerPage.toString()}
+          onValueChange={(value) => setItemsPerPage(Number(value))}
+        >
+          <SelectTrigger className="w-[70px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
+
   return (
     <>
       <Card>
@@ -307,7 +378,7 @@ export const FileImport = () => {
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="source">Source</Label>
-            <Select defaultValue="alipay" onValueChange={setSelectedSource}>
+            <Select defaultValue="alipay" onValueChange={handleSourceChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Select source" />
               </SelectTrigger>
@@ -320,90 +391,189 @@ export const FileImport = () => {
             </Select>
             {renderSourceHelp()}
           </div>
-
+          
           <div className="space-y-2">
             <Label htmlFor="file">Select File</Label>
-            <div
-              className="border rounded-md p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => document.getElementById('file')?.click()}
-            >
-              <div className="flex flex-col items-center gap-2">
-                <Upload className="h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  {fileSelected
-                    ? `Selected: ${fileSelected.name}`
-                    : selectedSource === "alipay"
-                    ? "Upload your Alipay export file (.csv)"
-                    : "Drag and drop or click to upload"
-                  }
-                </p>
-                <Input
-                  id="file"
-                  type="file"
-                  className="hidden"
-                  onChange={e => {
-                    setFileSelected(e.target.files?.[0] || null);
-                  }}
-                  accept=".csv"
-                />
+            <div className="grid gap-2">
+              <div 
+                className="border rounded-md p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => document.getElementById('file')?.click()}
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    {fileSelected 
+                      ? `Selected: ${fileSelected.name}`
+                      : selectedSource === "alipay" 
+                        ? "Upload your Alipay export file (.csv)"
+                        : "Drag and drop or click to upload"
+                    }
+                  </p>
+                  <Input 
+                    id="file" 
+                    type="file" 
+                    className="hidden" 
+                    onChange={handleFileChange}
+                    accept=".csv" 
+                  />
+                </div>
               </div>
+              <Button 
+                onClick={handleFileUpload} 
+                disabled={isLoading || !fileSelected}
+                className={selectedSource === "alipay" ? "bg-blue-600 hover:bg-blue-700" : ""}
+              >
+                {isLoading ? "Processing..." : selectedSource === "alipay" ? "Import Alipay Transactions" : "Upload and Process"}
+              </Button>
             </div>
-            <Button
-              onClick={handleFileUpload}
-              disabled={isLoading || !fileSelected}
-              className={selectedSource === "alipay" ? "bg-blue-600 hover:bg-blue-700" : ""}
-            >
-              {isLoading ? "Processing..." : selectedSource === "alipay" ? "Import Alipay Transactions" : "Upload and Preview"}
-            </Button>
           </div>
-          {selectedSource === "alipay" && (
-            <div className="bg-muted/20 rounded-md p-4 text-sm font-mono whitespace-pre-wrap text-muted-foreground mt-4">
-              <p className="font-semibold mb-2">Example Alipay CSV format:</p>
-              <pre>
-{`收/支,金额,交易时间,交易分类,商品说明,交易对方
-支出,100.00,2024-04-20,Food & Dining,Coffee Shop,Starbucks
-收入,5000.00,2024-04-18,Salary,Monthly Salary,Company XYZ
-支出,50.00,2024-04-19,Transportation,Taxi Ride,City Taxi
-支出,30.00,2024-04-17,Shopping,Books,Bookstore`}
-              </pre>
-            </div>
-          )}
+          {renderDataPreview()}
         </CardContent>
       </Card>
-
-      <Dialog open={showPreview} onOpenChange={open => setShowPreview(open)}>
-        <DialogContent className="md:max-w-4xl w-full">
+      
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="max-w-7xl h-[80vh] flex flex-col"> {/* Changed from max-w-4xl to max-w-7xl */}
           <DialogHeader>
-            <DialogTitle>Review & Edit Transactions</DialogTitle>
-            <div className="text-sm text-muted-foreground mb-2">
-              Review the imported data, edit any fields if needed, and click "Import" to save.
-            </div>
+            <DialogTitle>Preview Import Data</DialogTitle>
+            <DialogDescription>
+              Review and edit transactions before importing. {previewData?.transactions.length} items total.
+            </DialogDescription>
           </DialogHeader>
-          <div className="mb-4">
-            <TransactionPreviewTable
-              transactions={previewTransactions}
-              onTransactionChange={handlePreviewTransactionChange}
-              onRemove={handleRowRemove}
-              page={previewPage}
-              perPage={15}
-            />
+
+          <div className="flex-1 overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Merchant</TableHead>
+                  <TableHead>Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedData.map((transaction, index) => (
+                  <TableRow key={index}>
+                    {editingRow === index ? (
+                      <>
+                        <TableCell>
+                          <Input
+                            type="date"
+                            value={transaction.date instanceof Date 
+                              ? transaction.date.toISOString().split('T')[0]
+                              : ''}
+                            onChange={(e) => handleEditTransaction(index, 'date', new Date(e.target.value))}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={transaction.type}
+                            onValueChange={(value) => handleEditTransaction(index, 'type', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="expense">Expense</SelectItem>
+                              <SelectItem value="income">Income</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={transaction.category}
+                            onChange={(e) => handleEditTransaction(index, 'category', e.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={transaction.amount}
+                            onChange={(e) => handleEditTransaction(index, 'amount', parseFloat(e.target.value))}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={transaction.description}
+                            onChange={(e) => handleEditTransaction(index, 'description', e.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={transaction.merchant}
+                            onChange={(e) => handleEditTransaction(index, 'merchant', e.target.value)}
+                          />
+                        </TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell>
+                          {transaction.date instanceof Date 
+                            ? transaction.date.toLocaleDateString()
+                            : new Date(transaction.date as string).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>{transaction.type}</TableCell>
+                        <TableCell>{transaction.category}</TableCell>
+                        <TableCell>
+                          <span className={transaction.type === 'expense' ? 'text-red-500' : 'text-green-500'}>
+                            {transaction.type === 'expense' ? '-' : '+'}${transaction.amount?.toFixed(2)}
+                          </span>
+                        </TableCell>
+                        <TableCell>{transaction.description}</TableCell>
+                        <TableCell>{transaction.merchant}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            onClick={() => setEditingRow(editingRow === index ? null : index)}
+                          >
+                            {editingRow === index ? 'Save' : 'Edit'}
+                          </Button>
+                        </TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-          <div className="flex items-center gap-2 justify-end">
-            <Button
-              onClick={() => setShowPreview(false)}
-              variant="secondary"
-              type="button"
-              disabled={isLoading}
-            >
+
+          <div className="flex items-center justify-between mt-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => prev - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              {renderPageSizeSelector()}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setIsPreviewOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleImportConfirm}
-              disabled={isLoading || previewTransactions.length === 0}
-            >
-              {isLoading ? "Importing..." : "Import"}
+            <Button onClick={handleConfirmImport}>
+              Confirm Import
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
