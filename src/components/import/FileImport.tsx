@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -255,6 +256,19 @@ export const FileImport = () => {
             </Button>
           </div>
         </div>
+        {/* CSV example snippet for Alipay import */}
+        {selectedSource === "alipay" && (
+          <div className="bg-muted/20 rounded-md p-4 text-sm font-mono whitespace-pre-wrap text-muted-foreground mt-4">
+            <p className="font-semibold mb-2">Example Alipay CSV format:</p>
+            <pre>
+{`收/支,金额,交易时间,交易分类,商品说明,交易对方
+支出,100.00,2024-04-20,Food & Dining,Coffee Shop,Starbucks
+收入,5000.00,2024-04-18,Salary,Monthly Salary,Company XYZ
+支出,50.00,2024-04-19,Transportation,Taxi Ride,City Taxi
+支出,30.00,2024-04-17,Shopping,Books,Bookstore`}
+            </pre>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
