@@ -16,13 +16,19 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Transaction } from '@/components/transactions/TransactionList';
 import { importTransactions } from '@/lib/db/transactions';
 import Papa from 'papaparse';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TransactionPreviewTable } from "./TransactionPreviewTable";
 
 export const FileImport = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
   const [fileSelected, setFileSelected] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSource, setSelectedSource] = useState("alipay");
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewTransactions, setPreviewTransactions] = useState<Partial<Transaction>[]>([]);
+  const [previewPage, setPreviewPage] = useState(1);
 
   const importTransactionsMutation = useMutation({
     mutationFn: importTransactions,
@@ -77,9 +83,7 @@ export const FileImport = () => {
     if (!alipayTransactions.length) {
       return [];
     }
-    
-    console.log("Checking valid importedFrom values in database schema");
-    
+
     return alipayTransactions
       .filter(txn => {
         return (
@@ -93,14 +97,23 @@ export const FileImport = () => {
           (txn.date instanceof Date || typeof txn.date === 'string')
         );
       })
-      .map(txn => ({
-        ...txn,
-        date: txn.date instanceof Date
-          ? txn.date
-          : new Date(txn.date as string),
-        type: txn.type === 'expense' ? 'expense' : 'income',
-        importedFrom: 'file'
-      }));
+      .map(txn => {
+        const dateISO = txn.date instanceof Date
+          ? txn.date.toISOString().slice(0, 10)
+          : (typeof txn.date === "string" && txn.date.length > 10
+              ? txn.date.slice(0, 10)
+              : txn.date);
+
+        return {
+          date: dateISO,
+          type: txn.type === 'expense' ? 'expense' : 'income',
+          category: txn.category,
+          amount: txn.amount,
+          description: txn.description ?? '',
+          merchant_name: txn.merchant_name ?? txn.merchant ?? '',
+          imported_from: txn.importedFrom ?? 'file'
+        };
+      });
   };
 
   const handleFileUpload = async () => {
@@ -112,27 +125,22 @@ export const FileImport = () => {
       });
       return;
     }
-
     setIsLoading(true);
-    
+
     try {
       if (selectedSource === "alipay") {
         const text = await fileSelected.text();
-        Papa.parse<AlipayCSVRow>(text, {
+        Papa.parse(text, {
           header: true,
           encoding: "UTF-8",
-          complete: async (results) => {
+          complete: (results) => {
             try {
               const transactions = parseAlipayCSV(results);
               const normalized = normalizeAlipayTransactions(transactions);
-              console.log("Parsed transactions:", transactions);
-              console.log("Normalized for DB:", normalized);
-              await importTransactionsMutation.mutateAsync(normalized);
-              
-              toast({
-                title: "Alipay Import Successful",
-                description: `Processed ${fileSelected.name} and imported ${normalized.length} transactions.`,
-              });
+
+              setPreviewTransactions(normalized);
+              setShowPreview(true);
+              setPreviewPage(1);
             } catch (error) {
               toast({
                 title: "Import Processing Failed",
@@ -140,6 +148,7 @@ export const FileImport = () => {
                 variant: "destructive",
               });
             }
+            setIsLoading(false);
           },
           error: (error) => {
             toast({
@@ -147,43 +156,90 @@ export const FileImport = () => {
               description: `Error: ${error.message}`,
               variant: "destructive",
             });
+            setIsLoading(false);
           }
         });
       } else {
         const mockTransactions: Partial<Transaction>[] = [];
-        
         if (selectedSource === "wechat") {
           for (let i = 0; i < 5; i++) {
             mockTransactions.push({
-              date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
+              date: new Date(Date.now() - i * 86400000).toISOString().slice(0, 10),
               type: Math.random() > 0.3 ? 'expense' : 'income',
               category: Math.random() > 0.5 ? 'Shopping' : 'Food & Dining',
               amount: Math.floor(Math.random() * 100) + 10,
               description: `WeChat transaction #${i+1}`,
-              merchant: `WeChat Merchant ${i+1}`,
-              importedFrom: 'wechat'
+              merchant_name: `WeChat Merchant ${i+1}`,
+              imported_from: 'wechat'
             });
           }
         } else {
           for (let i = 0; i < 3; i++) {
             mockTransactions.push({
-              date: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
+              date: new Date(Date.now() - i * 86400000).toISOString().slice(0, 10),
               type: Math.random() > 0.3 ? 'expense' : 'income',
               category: 'Other',
               amount: Math.floor(Math.random() * 50) + 5,
               description: `Imported transaction #${i+1}`,
-              importedFrom: 'file'
+              imported_from: 'file'
             });
           }
         }
-        
-        await importTransactionsMutation.mutateAsync(mockTransactions);
-        
-        toast({
-          title: `${selectedSource === "wechat" ? "WeChat Pay" : "File"} Import Successful`,
-          description: `Processed ${fileSelected.name} and imported ${mockTransactions.length} transactions.`,
-        });
+        setPreviewTransactions(mockTransactions);
+        setShowPreview(true);
+        setPreviewPage(1);
+        setIsLoading(false);
       }
+    } catch (error) {
+      toast({
+        title: "Import Failed",
+        description: `Error: ${(error as Error).message}`,
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
+
+  const handlePreviewTransactionChange = (idx: number, updated: Partial<Transaction>) => {
+    setPreviewTransactions((prev) =>
+      prev.map((txn, i) => (i === idx ? { ...txn, ...updated } : txn))
+    );
+  };
+
+  const handleRowRemove = (idx: number) => {
+    setPreviewTransactions((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleImportConfirm = async () => {
+    if (!previewTransactions.length) {
+      toast({
+        title: "No transactions to import",
+        variant: "destructive"
+      });
+      return;
+    }
+    setIsLoading(true);
+
+    try {
+      const validTxns = previewTransactions.filter(
+        (t) =>
+          t.date &&
+          t.type &&
+          t.category &&
+          typeof t.amount === "number" &&
+          t.date.length === 10
+      );
+      if (!validTxns.length) {
+        throw new Error("No valid transactions selected. Make sure all rows are valid");
+      }
+      await importTransactionsMutation.mutateAsync(validTxns);
+      toast({
+        title: "Import Successful",
+        description: `Imported ${validTxns.length} transactions.`,
+      });
+      setShowPreview(false);
+      setPreviewTransactions([]);
+      setFileSelected(null);
     } catch (error) {
       toast({
         title: "Import Failed",
@@ -192,7 +248,6 @@ export const FileImport = () => {
       });
     } finally {
       setIsLoading(false);
-      setFileSelected(null);
     }
   };
 
@@ -241,78 +296,116 @@ export const FileImport = () => {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Upload Transaction File</CardTitle>
-        <CardDescription>
-          Import transaction data from external sources like Alipay, WeChat Pay, or bank statements.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="source">Source</Label>
-          <Select defaultValue="alipay" onValueChange={handleSourceChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select source" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="alipay">Alipay Export</SelectItem>
-              <SelectItem value="wechat">WeChat Pay Export</SelectItem>
-              <SelectItem value="generic">Generic CSV</SelectItem>
-              <SelectItem value="bank">Bank Statement</SelectItem>
-            </SelectContent>
-          </Select>
-          {renderSourceHelp()}
-        </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="file">Select File</Label>
-          <div className="grid gap-2">
-            <div 
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload Transaction File</CardTitle>
+          <CardDescription>
+            Import transaction data from external sources like Alipay, WeChat Pay, or bank statements.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="source">Source</Label>
+            <Select defaultValue="alipay" onValueChange={setSelectedSource}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alipay">Alipay Export</SelectItem>
+                <SelectItem value="wechat">WeChat Pay Export</SelectItem>
+                <SelectItem value="generic">Generic CSV</SelectItem>
+                <SelectItem value="bank">Bank Statement</SelectItem>
+              </SelectContent>
+            </Select>
+            {renderSourceHelp()}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="file">Select File</Label>
+            <div
               className="border rounded-md p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => document.getElementById('file')?.click()}
             >
               <div className="flex flex-col items-center gap-2">
                 <Upload className="h-8 w-8 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
-                  {fileSelected 
+                  {fileSelected
                     ? `Selected: ${fileSelected.name}`
-                    : selectedSource === "alipay" 
-                      ? "Upload your Alipay export file (.csv)"
-                      : "Drag and drop or click to upload"
+                    : selectedSource === "alipay"
+                    ? "Upload your Alipay export file (.csv)"
+                    : "Drag and drop or click to upload"
                   }
                 </p>
-                <Input 
-                  id="file" 
-                  type="file" 
-                  className="hidden" 
-                  onChange={handleFileChange}
-                  accept=".csv" 
+                <Input
+                  id="file"
+                  type="file"
+                  className="hidden"
+                  onChange={e => {
+                    setFileSelected(e.target.files?.[0] || null);
+                  }}
+                  accept=".csv"
                 />
               </div>
             </div>
-            <Button 
-              onClick={handleFileUpload} 
+            <Button
+              onClick={handleFileUpload}
               disabled={isLoading || !fileSelected}
               className={selectedSource === "alipay" ? "bg-blue-600 hover:bg-blue-700" : ""}
             >
-              {isLoading ? "Processing..." : selectedSource === "alipay" ? "Import Alipay Transactions" : "Upload and Process"}
+              {isLoading ? "Processing..." : selectedSource === "alipay" ? "Import Alipay Transactions" : "Upload and Preview"}
             </Button>
           </div>
-        </div>
-        {selectedSource === "alipay" && (
-          <div className="bg-muted/20 rounded-md p-4 text-sm font-mono whitespace-pre-wrap text-muted-foreground mt-4">
-            <p className="font-semibold mb-2">Example Alipay CSV format:</p>
-            <pre>
+          {selectedSource === "alipay" && (
+            <div className="bg-muted/20 rounded-md p-4 text-sm font-mono whitespace-pre-wrap text-muted-foreground mt-4">
+              <p className="font-semibold mb-2">Example Alipay CSV format:</p>
+              <pre>
 {`收/支,金额,交易时间,交易分类,商品说明,交易对方
 支出,100.00,2024-04-20,Food & Dining,Coffee Shop,Starbucks
 收入,5000.00,2024-04-18,Salary,Monthly Salary,Company XYZ
 支出,50.00,2024-04-19,Transportation,Taxi Ride,City Taxi
 支出,30.00,2024-04-17,Shopping,Books,Bookstore`}
-            </pre>
+              </pre>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={showPreview} onOpenChange={open => setShowPreview(open)}>
+        <DialogContent className="md:max-w-4xl w-full">
+          <DialogHeader>
+            <DialogTitle>Review & Edit Transactions</DialogTitle>
+            <div className="text-sm text-muted-foreground mb-2">
+              Review the imported data, edit any fields if needed, and click "Import" to save.
+            </div>
+          </DialogHeader>
+          <div className="mb-4">
+            <TransactionPreviewTable
+              transactions={previewTransactions}
+              onTransactionChange={handlePreviewTransactionChange}
+              onRemove={handleRowRemove}
+              page={previewPage}
+              perPage={15}
+            />
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <div className="flex items-center gap-2 justify-end">
+            <Button
+              onClick={() => setShowPreview(false)}
+              variant="secondary"
+              type="button"
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportConfirm}
+              disabled={isLoading || previewTransactions.length === 0}
+            >
+              {isLoading ? "Importing..." : "Import"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
