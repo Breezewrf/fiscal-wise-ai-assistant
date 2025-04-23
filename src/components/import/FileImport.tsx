@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,7 +49,6 @@ export const FileImport = () => {
   };
 
   const parseAlipayCSV = (results: Papa.ParseResult<AlipayCSVRow>): Partial<Transaction>[] => {
-    // Filter out rows that have valid transaction data and ignore the header row
     const dataRows = results.data.filter(
       (row) =>
         row['------------------------------------------------------------------------------------'] &&
@@ -75,6 +73,30 @@ export const FileImport = () => {
     });
   };
 
+  const normalizeAlipayTransactions = (alipayTransactions: Partial<Transaction>[]): Partial<Transaction>[] => {
+    return alipayTransactions
+      .filter(txn => {
+        return (
+          txn.type &&
+          typeof txn.type === 'string' &&
+          txn.category &&
+          typeof txn.category === 'string' &&
+          txn.amount !== undefined &&
+          typeof txn.amount === 'number' &&
+          txn.date &&
+          (txn.date instanceof Date || typeof txn.date === 'string')
+        );
+      })
+      .map(txn => ({
+        ...txn,
+        date: txn.date instanceof Date
+          ? txn.date
+          : new Date(txn.date as string),
+        type: txn.type === 'expense' ? 'expense' : 'income',
+        importedFrom: 'alipay',
+      }));
+  };
+
   const handleFileUpload = async () => {
     if (!fileSelected) {
       toast({
@@ -91,35 +113,36 @@ export const FileImport = () => {
       if (selectedSource === "alipay") {
         const text = await fileSelected.text();
         Papa.parse<AlipayCSVRow>(text, {
-                  header: true,
-                  encoding: "UTF-8",
-                  complete: async (results) => {
-                    try {
-                      const transactions = parseAlipayCSV(results);
-                      console.log("Parsed transactions:", transactions);
-                      await importTransactionsMutation.mutateAsync(transactions);
-                      
-                      
-                      toast({
-                        title: "Alipay Import Successful",
-                        description: `Processed ${fileSelected.name} and imported ${transactions.length} transactions.`,
-                      });
-                    } catch (error) {
-                      toast({
-                        title: "Import Processing Failed",
-                        description: `Error: ${(error as Error).message}, transactions: ${JSON.stringify(results.data)}`,
-                        variant: "destructive",
-                      });
-                    }
-                  },
-                  error: (error) => {
-                    toast({
-                      title: "CSV Parsing Failed",
-                      description: `Error: ${error.message}`,
-                      variant: "destructive",
-                    });
-                  }
-                });
+          header: true,
+          encoding: "UTF-8",
+          complete: async (results) => {
+            try {
+              const transactions = parseAlipayCSV(results);
+              const normalized = normalizeAlipayTransactions(transactions);
+              console.log("Parsed transactions:", transactions);
+              console.log("Normalized for DB:", normalized);
+              await importTransactionsMutation.mutateAsync(normalized);
+              
+              toast({
+                title: "Alipay Import Successful",
+                description: `Processed ${fileSelected.name} and imported ${normalized.length} transactions.`,
+              });
+            } catch (error) {
+              toast({
+                title: "Import Processing Failed",
+                description: `Error: ${(error as Error).message}, transactions: ${JSON.stringify(results.data)}`,
+                variant: "destructive",
+              });
+            }
+          },
+          error: (error) => {
+            toast({
+              title: "CSV Parsing Failed",
+              description: `Error: ${error.message}`,
+              variant: "destructive",
+            });
+          }
+        });
       } else {
         // Mock importing data from file
         const mockTransactions: Partial<Transaction>[] = [];
@@ -272,7 +295,6 @@ export const FileImport = () => {
             </Button>
           </div>
         </div>
-        {/* CSV example snippet for Alipay import */}
         {selectedSource === "alipay" && (
           <div className="bg-muted/20 rounded-md p-4 text-sm font-mono whitespace-pre-wrap text-muted-foreground mt-4">
             <p className="font-semibold mb-2">Example Alipay CSV format:</p>
