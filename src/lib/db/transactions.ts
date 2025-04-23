@@ -1,3 +1,4 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Transaction } from '@/components/transactions/TransactionList';
@@ -13,7 +14,7 @@ export type DbTransaction = {
   description?: string | null;
   created_at: string;
   merchant_name?: string | null;
-  imported_from?: 'manual' | 'wechat' | 'receipt' | 'file' | null;
+  imported_from?: 'manual' | 'wechat' | 'receipt' | 'file' | 'alipay' | null;
 }
 
 export const mapDbToTransaction = (dbTransaction: DbTransaction): Transaction => {
