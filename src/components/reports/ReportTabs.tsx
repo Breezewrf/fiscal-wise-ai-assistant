@@ -51,9 +51,6 @@ export function ReportTabs({
     <Tabs defaultValue="overview">
       <TabsList className="mb-6">
         <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="expense">Expenses</TabsTrigger>
-        <TabsTrigger value="income">Income</TabsTrigger>
-        <TabsTrigger value="saving">Saving</TabsTrigger>
       </TabsList>
       
       <TabsContent value="overview" className="space-y-6">
@@ -154,151 +151,6 @@ export function ReportTabs({
         </Card>
       </TabsContent>
       
-      <TabsContent value="expense" className="space-y-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div>
-              <CardTitle>Expenses Analysis</CardTitle>
-              <CardDescription>
-                Compare your expenses over time
-              </CardDescription>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                className={analysisView === 'daily' ? "bg-primary/10" : ""}
-                onClick={() => setAnalysisView('daily')}
-              >
-                <ChartLine className="h-4 w-4 mr-1" />
-                Daily
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className={analysisView === 'weekly' ? "bg-primary/10" : ""}
-                onClick={() => setAnalysisView('weekly')}
-              >
-                <BarChartHorizontal className="h-4 w-4 mr-1" />
-                Weekly
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className={analysisView === 'monthly' ? "bg-primary/10" : ""}
-                onClick={() => setAnalysisView('monthly')}
-              >
-                <BarChartHorizontal className="h-4 w-4 mr-1" />
-                Monthly
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-[300px] flex items-center justify-center">
-                <p className="text-muted-foreground">Loading financial data...</p>
-              </div>
-            ) : (
-              <div className="grid gap-6 md:grid-cols-2">
-                <ChartView 
-                  analysisView={analysisView}
-                  dailyData={dailyData}
-                  weeklyData={weeklyData}
-                  monthlyData={monthlyData}
-                  chartColors={chartColors}
-                />
-                <CategoryChart 
-                  categoryData={categoryData}
-                  categoryColors={categoryColors}
-                  onCategorySelect={() => {}}
-                  selectedCategory={null}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </TabsContent>
-      
-      <TabsContent value="income" className="space-y-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div>
-              <CardTitle>Income Analysis</CardTitle>
-              <CardDescription>
-                Compare your income over time
-              </CardDescription>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                className={analysisView === 'daily' ? "bg-primary/10" : ""}
-                onClick={() => setAnalysisView('daily')}
-              >
-                <ChartLine className="h-4 w-4 mr-1" />
-                Daily
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className={analysisView === 'weekly' ? "bg-primary/10" : ""}
-                onClick={() => setAnalysisView('weekly')}
-              >
-                <BarChartHorizontal className="h-4 w-4 mr-1" />
-                Weekly
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className={analysisView === 'monthly' ? "bg-primary/10" : ""}
-                onClick={() => setAnalysisView('monthly')}
-              >
-                <BarChartHorizontal className="h-4 w-4 mr-1" />
-                Monthly
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-[300px] flex items-center justify-center">
-                <p className="text-muted-foreground">Loading financial data...</p>
-              </div>
-            ) : (
-              <div className="grid gap-6 md:grid-cols-2">
-                <ChartView 
-                  analysisView={analysisView}
-                  dailyData={dailyData}
-                  weeklyData={weeklyData}
-                  monthlyData={monthlyData}
-                  chartColors={chartColors}
-                />
-                <CategoryChart 
-                  categoryData={categoryData}
-                  categoryColors={categoryColors}
-                  onCategorySelect={() => {}}
-                  selectedCategory={null}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </TabsContent>
-      
-      <TabsContent value="saving" className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Saving Analysis</CardTitle>
-            <CardDescription>
-              Review your saving financial patterns
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[400px]">
-              <p className="text-muted-foreground text-center">Saving analysis content</p>
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
       {selectedCategory && (
         <TransactionDetailsDialog
           open={showTransactionDetails}
@@ -338,9 +190,9 @@ function ChartView({ analysisView, dailyData, weeklyData, monthlyData, chartColo
   };
 
   return (
-    <div className="h-[300px] w-full">
+    <div className="h-[400px] w-full">
       <ChartContainer
-        className="h-[300px]"
+        className="h-[400px]"
         config={{
           income: { color: chartColors.income },
           expenses: { color: chartColors.expenses },
@@ -416,14 +268,14 @@ interface CategoryChartProps {
 
 function CategoryChart({ categoryData, categoryColors, onCategorySelect, selectedCategory }: CategoryChartProps) {
   return (
-    <div className="h-[300px] w-full">
+    <div className="h-[400px] w-full">
       {categoryData.length === 0 ? (
         <div className="h-full w-full flex items-center justify-center">
           <p className="text-muted-foreground">No expense data available for this period</p>
         </div>
       ) : (
         <ChartContainer
-          className="h-[300px]"
+          className="h-[400px]"
           config={Object.fromEntries(
             categoryData.slice(0, 8).map((cat, i) => [
               cat.name,
