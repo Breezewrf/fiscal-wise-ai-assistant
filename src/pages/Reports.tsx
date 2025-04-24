@@ -477,7 +477,12 @@ export default function Reports() {
   return (
     <div className="animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Financial Reports</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <h1 className="text-3xl font-bold tracking-tight">Financial Reports</h1>
+          <span className="text-muted-foreground">
+            {format(dateRange.from, 'MMM d, yyyy')} - {format(dateRange.to, 'MMM d, yyyy')}
+          </span>
+        </div>
         
         <PeriodSelect
           selectedPeriod={selectedPeriod}
