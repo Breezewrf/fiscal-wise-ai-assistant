@@ -153,21 +153,96 @@ export const importTransactions = async (transactions: Partial<Transaction>[]): 
   return (data as DbTransaction[] || []).map(mapDbToTransaction);
 };
 
-export const getFinancialSummary = (transactions: Transaction[]) => {
-  const income = transactions
+interface FinancialSummary {
+  income: number;
+  expenses: number;
+  balance: number;
+}
+
+function getDaysInCurrentMonth(): number {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function getDaysPassed(): number {
+  const now = new Date();
+  return now.getDate();
+}
+
+export function getFinancialSummary(transactions: Transaction[]): FinancialSummary {
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  
+  const monthTransactions = transactions.filter(t => {
+    const date = new Date(t.date);
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+  });
+
+  const totalIncome = monthTransactions
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
-  
-  const expenses = transactions
+
+  const totalExpenses = monthTransactions
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
-  
+
+  const daysPassed = getDaysPassed();
+
   return {
-    income,
-    expenses,
-    balance: income - expenses
+    income: totalIncome / daysPassed,  // Daily average income
+    expenses: totalExpenses / daysPassed,  // Daily average expenses
+    balance: (totalIncome - totalExpenses) / daysPassed  // Daily average balance
   };
-};
+}
+
+export function getFinancialTrends(transactions: Transaction[]) {
+  const currentMonth = new Date().getMonth();
+  const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  const currentYear = new Date().getFullYear();
+  const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+  // Current month transactions
+  const currentMonthData = transactions.filter(t => {
+    const date = new Date(t.date);
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+  });
+
+  // Last month transactions
+  const lastMonthData = transactions.filter(t => {
+    const date = new Date(t.date);
+    return date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
+  });
+
+  // Calculate daily averages for both months
+  const currentDaysPassed = getDaysPassed();
+  const lastMonthDays = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+
+  const currentAvg = {
+    income: currentMonthData.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) / currentDaysPassed,
+    expenses: currentMonthData.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) / currentDaysPassed
+  };
+
+  const lastAvg = {
+    income: lastMonthData.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) / lastMonthDays,
+    expenses: lastMonthData.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) / lastMonthDays
+  };
+
+  // Calculate trend percentages
+  return {
+    income: {
+      trend: lastAvg.income ? ((currentAvg.income - lastAvg.income) / lastAvg.income) * 100 : 0
+    },
+    expenses: {
+      trend: lastAvg.expenses ? ((currentAvg.expenses - lastAvg.expenses) / lastAvg.expenses) * 100 : 0
+    },
+    balance: {
+      trend: lastAvg.income - lastAvg.expenses ? 
+        (((currentAvg.income - currentAvg.expenses) - (lastAvg.income - lastAvg.expenses)) / Math.abs(lastAvg.income - lastAvg.expenses)) * 100 : 0
+    }
+  };
+}
 
 export const getExpensesByCategory = (transactions: Transaction[]) => {
   const expensesByCategory: Record<string, number> = {};
@@ -221,61 +296,4 @@ export const generateSpendingTrendData = (transactions: Transaction[]) => {
 export const calculatePercentageChange = (current: number, previous: number): number => {
   if (previous === 0) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 100);
-};
-
-export const getFinancialTrends = (transactions: Transaction[]) => {
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  
-  const currentMonthStart = new Date(currentYear, currentMonth, 1);
-  const previousMonthStart = new Date(currentYear, currentMonth - 1, 1);
-  
-  const currentMonthTransactions = transactions.filter(t => 
-    t.date >= currentMonthStart
-  );
-  
-  const previousMonthTransactions = transactions.filter(t => 
-    t.date >= previousMonthStart && t.date < currentMonthStart
-  );
-  
-  const currentSummary = getFinancialSummary(currentMonthTransactions);
-  const previousSummary = getFinancialSummary(previousMonthTransactions);
-  
-  const incomeTrend = calculatePercentageChange(currentSummary.income, previousSummary.income);
-  
-  const expensesTrend = calculatePercentageChange(currentSummary.expenses, previousSummary.expenses);
-  
-  let balanceTrend;
-  
-  if (previousSummary.balance === 0) {
-    balanceTrend = currentSummary.balance >= 0 ? 100 : -100;
-  } else if (
-    (previousSummary.balance < 0 && currentSummary.balance >= 0) || 
-    (previousSummary.balance > 0 && currentSummary.balance <= 0)
-  ) {
-    balanceTrend = Math.abs(calculatePercentageChange(
-      Math.abs(currentSummary.balance), 
-      Math.abs(previousSummary.balance)
-    ));
-    
-    balanceTrend = previousSummary.balance < currentSummary.balance ? balanceTrend : -balanceTrend;
-  } else {
-    balanceTrend = calculatePercentageChange(currentSummary.balance, previousSummary.balance);
-  }
-  
-  return {
-    income: {
-      value: currentSummary.income,
-      trend: incomeTrend
-    },
-    expenses: {
-      value: currentSummary.expenses,
-      trend: expensesTrend
-    },
-    balance: {
-      value: currentSummary.balance,
-      trend: balanceTrend
-    }
-  };
 };
