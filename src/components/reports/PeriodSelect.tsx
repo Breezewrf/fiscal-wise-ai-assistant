@@ -5,7 +5,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarIcon, Download, Printer, Share2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { format, subMonths, subWeeks, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths } from "date-fns";
+import { format, subMonths, subWeeks, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, addWeeks, addQuarters, addYears, subQuarters, subYears, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PeriodSelectProps {
@@ -55,16 +55,80 @@ export function PeriodSelect({
     setDateRange({ from, to });
   };
 
-  const handlePreviousMonth = () => {
-    const newFrom = subMonths(dateRange.from, 1);
-    const newTo = subMonths(dateRange.to, 1);
+  const handlePrevious = () => {
+    const now = new Date();
+    let newFrom: Date;
+    let newTo: Date;
+
+    switch (selectedPeriod) {
+      case 'week':
+        newFrom = startOfWeek(subWeeks(dateRange.from, 1));
+        newTo = endOfWeek(subWeeks(dateRange.to, 1));
+        break;
+      case 'month':
+        newFrom = startOfMonth(subMonths(dateRange.from, 1));
+        newTo = endOfMonth(subMonths(dateRange.to, 1));
+        break;
+      case 'quarter':
+        newFrom = startOfQuarter(subQuarters(dateRange.from, 1));
+        newTo = endOfQuarter(subQuarters(dateRange.to, 1));
+        break;
+      case 'year':
+        newFrom = startOfYear(subYears(dateRange.from, 1));
+        newTo = endOfYear(subYears(dateRange.to, 1));
+        break;
+      default:
+        newFrom = startOfMonth(subMonths(dateRange.from, 1));
+        newTo = endOfMonth(subMonths(dateRange.to, 1));
+    }
+
     setDateRange({ from: newFrom, to: newTo });
   };
 
-  const handleNextMonth = () => {
-    const newFrom = addMonths(dateRange.from, 1);
-    const newTo = addMonths(dateRange.to, 1);
+  const handleNext = () => {
+    const now = new Date();
+    let newFrom: Date;
+    let newTo: Date;
+
+    switch (selectedPeriod) {
+      case 'week':
+        newFrom = startOfWeek(addWeeks(dateRange.from, 1));
+        newTo = endOfWeek(addWeeks(dateRange.to, 1));
+        break;
+      case 'month':
+        newFrom = startOfMonth(addMonths(dateRange.from, 1));
+        newTo = endOfMonth(addMonths(dateRange.to, 1));
+        break;
+      case 'quarter':
+        newFrom = startOfQuarter(addQuarters(dateRange.from, 1));
+        newTo = endOfQuarter(addQuarters(dateRange.to, 1));
+        break;
+      case 'year':
+        newFrom = startOfYear(addYears(dateRange.from, 1));
+        newTo = endOfYear(addYears(dateRange.to, 1));
+        break;
+      default:
+        newFrom = startOfMonth(addMonths(dateRange.from, 1));
+        newTo = endOfMonth(addMonths(dateRange.to, 1));
+    }
+
     setDateRange({ from: newFrom, to: newTo });
+  };
+
+  const getNavigationButtonTooltip = (direction: 'previous' | 'next') => {
+    if (direction === 'previous' && !hasPreviousData) {
+      return "No data available for previous period";
+    }
+    if (direction === 'next' && !hasNextData) {
+      return "No data available for next period";
+    }
+
+    const period = selectedPeriod === 'week' ? 'week' :
+                  selectedPeriod === 'month' ? 'month' :
+                  selectedPeriod === 'quarter' ? 'quarter' :
+                  selectedPeriod === 'year' ? 'year' : 'period';
+
+    return `View ${direction} ${period}`;
   };
 
   return (
@@ -76,18 +140,16 @@ export function PeriodSelect({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={handlePreviousMonth}
+                onClick={handlePrevious}
                 disabled={!hasPreviousData}
-                title="Previous Month"
+                title={`Previous ${selectedPeriod}`}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            {hasPreviousData 
-              ? "View previous month" 
-              : "No data available for previous month"}
+            {getNavigationButtonTooltip('previous')}
           </TooltipContent>
         </Tooltip>
 
@@ -162,18 +224,16 @@ export function PeriodSelect({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={handleNextMonth}
+                onClick={handleNext}
                 disabled={!hasNextData}
-                title="Next Month"
+                title={`Next ${selectedPeriod}`}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            {hasNextData 
-              ? "View next month" 
-              : "No data available for next month"}
+            {getNavigationButtonTooltip('next')}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
