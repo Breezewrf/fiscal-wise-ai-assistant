@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarIcon, Download, Printer, Share2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Printer, Share2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { format, subMonths, subWeeks, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
+import { format, subMonths, subWeeks, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths } from "date-fns";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PeriodSelectProps {
   selectedPeriod: string;
@@ -15,6 +16,8 @@ interface PeriodSelectProps {
   setShowExportOptions: (show: boolean) => void;
   handlePrint: () => void;
   handleShare: () => void;
+  hasNextData: boolean;
+  hasPreviousData: boolean;
 }
 
 export function PeriodSelect({
@@ -24,7 +27,9 @@ export function PeriodSelect({
   setDateRange,
   setShowExportOptions,
   handlePrint,
-  handleShare
+  handleShare,
+  hasNextData,
+  hasPreviousData
 }: PeriodSelectProps) {
   const handleQuickSelect = (type: 'lastWeek' | 'lastMonth' | 'twoMonthsAgo') => {
     const now = new Date();
@@ -50,72 +55,128 @@ export function PeriodSelect({
     setDateRange({ from, to });
   };
 
+  const handlePreviousMonth = () => {
+    const newFrom = subMonths(dateRange.from, 1);
+    const newTo = subMonths(dateRange.to, 1);
+    setDateRange({ from: newFrom, to: newTo });
+  };
+
+  const handleNextMonth = () => {
+    const newFrom = addMonths(dateRange.from, 1);
+    const newTo = addMonths(dateRange.to, 1);
+    setDateRange({ from: newFrom, to: newTo });
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-2">
-        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Select Period" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="week">This Week</SelectItem>
-            <SelectItem value="month">This Month</SelectItem>
-            <SelectItem value="quarter">This Quarter</SelectItem>
-            <SelectItem value="year">This Year</SelectItem>
-            <SelectItem value="all">All Time</SelectItem>
-            <SelectItem value="custom">Custom Range</SelectItem>
-          </SelectContent>
-        </Select>
-        
-        {selectedPeriod === 'custom' && (
-          <Popover>
-            <PopoverTrigger asChild>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
               <Button
                 variant="outline"
-                className={cn(
-                  "justify-start text-left font-normal",
-                  !dateRange && "text-muted-foreground"
-                )}
+                size="icon"
+                onClick={handlePreviousMonth}
+                disabled={!hasPreviousData}
+                title="Previous Month"
               >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange?.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "LLL dd, y")} -{" "}
-                      {format(dateRange.to, "LLL dd, y")}
-                    </>
-                  ) : (
-                    format(dateRange.from, "LLL dd, y")
-                  )
-                ) : (
-                  <span>Pick a date</span>
-                )}
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={dateRange?.from}
-                selected={{
-                  from: dateRange?.from,
-                  to: dateRange?.to,
-                }}
-                onSelect={(range) => {
-                  if (range?.from && range?.to) {
-                    setDateRange({ 
-                      from: range.from, 
-                      to: range.to 
-                    });
-                  }
-                }}
-                numberOfMonths={2}
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
-        )}
-      </div>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {hasPreviousData 
+              ? "View previous month" 
+              : "No data available for previous month"}
+          </TooltipContent>
+        </Tooltip>
+
+        <div className="flex items-center gap-2">
+          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Select Period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+              <SelectItem value="quarter">This Quarter</SelectItem>
+              <SelectItem value="year">This Year</SelectItem>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {selectedPeriod === 'custom' && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "justify-start text-left font-normal",
+                    !dateRange && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "LLL dd, y")} -{" "}
+                        {format(dateRange.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "LLL dd, y")
+                    )
+                  ) : (
+                    <span>Pick a date</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={{
+                    from: dateRange?.from,
+                    to: dateRange?.to,
+                  }}
+                  onSelect={(range) => {
+                    if (range?.from && range?.to) {
+                      setDateRange({ 
+                        from: range.from, 
+                        to: range.to 
+                      });
+                    }
+                  }}
+                  numberOfMonths={2}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleNextMonth}
+                disabled={!hasNextData}
+                title="Next Month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {hasNextData 
+              ? "View next month" 
+              : "No data available for next month"}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       <div className="flex items-center gap-1">
         <Button 

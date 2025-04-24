@@ -1,0 +1,116 @@
+import React, { useState } from 'react';
+import { format } from "date-fns";
+import { ArrowUpDown } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+
+interface TransactionDetailsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  transactions: any[];
+  category: string;
+}
+
+export function TransactionDetailsDialog({
+  open,
+  onOpenChange,
+  transactions,
+  category,
+}: TransactionDetailsDialogProps) {
+  const [sortConfig, setSortConfig] = useState<{
+    key: 'date' | 'amount';
+    direction: 'asc' | 'desc';
+  }>({
+    key: 'date',
+    direction: 'desc'
+  });
+
+  const sortedTransactions = [...transactions].sort((a, b) => {
+    const aValue = sortConfig.key === 'date' ? a.date.getTime() : a.amount;
+    const bValue = sortConfig.key === 'date' ? b.date.getTime() : b.amount;
+    return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+  });
+
+  const handleSort = (key: 'date' | 'amount') => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>{category} Transactions</DialogTitle>
+        </DialogHeader>
+        <ScrollArea className="flex-grow">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSort('date')}
+                    className="flex items-center gap-1"
+                  >
+                    Date
+                    <ArrowUpDown className="h-3 w-3" />
+                    {sortConfig.key === 'date' && (
+                      <span className="ml-1 text-xs">
+                        ({sortConfig.direction === 'asc' ? '↑' : '↓'})
+                      </span>
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSort('amount')}
+                    className="flex items-center gap-1"
+                  >
+                    Amount
+                    <ArrowUpDown className="h-3 w-3" />
+                    {sortConfig.key === 'amount' && (
+                      <span className="ml-1 text-xs">
+                        ({sortConfig.direction === 'asc' ? '↑' : '↓'})
+                      </span>
+                    )}
+                  </Button>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedTransactions.map((transaction, index) => (
+                <TableRow key={index}>
+                  <TableCell>{format(transaction.date, 'MMM d, yyyy')}</TableCell>
+                  <TableCell>{transaction.description}</TableCell>
+                  <TableCell className="text-right">
+                    ${transaction.amount.toFixed(2)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}

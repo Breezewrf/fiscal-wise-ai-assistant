@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   DollarSign, 
-  ArrowUpRight, 
-  ArrowDownRight, 
+  TrendingUp,
+  TrendingDown,
   CreditCard, 
   LineChart, 
   PieChart,
@@ -55,26 +54,26 @@ export default function Dashboard() {
       
       <div className="grid gap-4 md:grid-cols-3 mb-8">
         <StatCard 
-          title="Income"
+          title="Average Daily Income"
           value={`$${summary.income.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          icon={<ArrowUpRight className="h-5 w-5 text-green-500" />}
-          description="Total income this month"
+          icon={<TrendingUp className="h-5 w-5 text-green-500" />}
+          description="Average daily income this month"
           trend={{ value: trends.income.trend, isPositive: trends.income.trend >= 0 }}
         />
         
         <StatCard 
-          title="Expenses"
+          title="Average Daily Expenses"
           value={`$${summary.expenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          icon={<ArrowDownRight className="h-5 w-5 text-red-500" />}
-          description="Total expenses this month"
+          icon={<TrendingDown className="h-5 w-5 text-red-500" />}
+          description="Average daily expenses this month"
           trend={{ value: Math.abs(trends.expenses.trend), isPositive: trends.expenses.trend >= 0 }}
         />
         
         <StatCard 
-          title="Balance"
+          title="Average Daily Balance"
           value={`$${summary.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           icon={<DollarSign className="h-5 w-5 text-primary" />}
-          description="Current balance"
+          description="Average daily net balance"
           trend={{ value: Math.abs(trends.balance.trend), isPositive: trends.balance.trend >= 0 }}
         />
       </div>

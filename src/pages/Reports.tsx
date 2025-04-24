@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { format, isAfter, isBefore, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, eachDayOfInterval } from "date-fns";
+import { format, isAfter, isBefore, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, eachDayOfInterval, addMonths, subMonths, isFuture } from "date-fns";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { fetchTransactions, getExpensesByCategory, generateSpendingTrendData } from '@/lib/db/transactions';
 import { ExportOptions } from '@/components/reports/ExportOptions';
@@ -25,7 +25,7 @@ export default function Reports() {
   const [isCustomRange, setIsCustomRange] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv' | 'pdf'>('json');
-  const [analysisView, setAnalysisView] = useState<'daily' | 'weekly'>('daily');
+  const [analysisView, setAnalysisView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const isMobile = useIsMobile();
   
   useEffect(() => {
@@ -171,6 +171,63 @@ export default function Reports() {
     return dailyData;
   }, [transactions]);
   
+  const monthlyData = useMemo(() => {
+    const monthMap = new Map();
+    
+    transactions.forEach(transaction => {
+      const monthKey = format(transaction.date, 'MMM yyyy');
+      
+      if (!monthMap.has(monthKey)) {
+        monthMap.set(monthKey, {
+          name: monthKey,
+          income: 0,
+          expenses: 0,
+          balance: 0,
+          date: startOfMonth(transaction.date),
+        });
+      }
+      
+      const monthData = monthMap.get(monthKey);
+      if (transaction.type === 'income') {
+        monthData.income += transaction.amount;
+      } else if (transaction.type === 'expense') {
+        monthData.expenses += transaction.amount;
+      }
+      monthData.balance = monthData.income - monthData.expenses;
+    });
+    
+    return Array.from(monthMap.values())
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [transactions]);
+
+  const dailyData = useMemo(() => {
+    const days = eachDayOfInterval({ 
+      start: dateRange.from,
+      end: dateRange.to
+    });
+    
+    return days.map(day => {
+      const dayTransactions = transactions.filter(t => 
+        format(t.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd')
+      );
+      
+      const income = dayTransactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+      const expenses = dayTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      return {
+        name: format(day, 'MMM d'),
+        income,
+        expenses,
+        balance: income - expenses
+      };
+    });
+  }, [transactions, dateRange]);
+
   const categoryColors = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D', '#BCA88E', '#8FB9AA', '#F28B66'];
 
   const financialSummary = useMemo(() => {
@@ -347,6 +404,25 @@ export default function Reports() {
     }
   };
 
+  const hasNextData = useMemo(() => {
+    const nextMonth = addMonths(dateRange.to, 1);
+    // Don't allow navigation to future months
+    if (isFuture(nextMonth)) return false;
+    
+    return allTransactions.some(transaction => 
+      isAfter(transaction.date, dateRange.to) && 
+      isBefore(transaction.date, endOfMonth(nextMonth))
+    );
+  }, [allTransactions, dateRange]);
+
+  const hasPreviousData = useMemo(() => {
+    const previousMonth = subMonths(dateRange.from, 1);
+    return allTransactions.some(transaction => 
+      isAfter(transaction.date, startOfMonth(previousMonth)) && 
+      isBefore(transaction.date, dateRange.from)
+    );
+  }, [allTransactions, dateRange]);
+
   return (
     <div className="animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
@@ -360,6 +436,8 @@ export default function Reports() {
           setShowExportOptions={setShowExportOptions}
           handlePrint={handlePrint}
           handleShare={handleShare}
+          hasNextData={hasNextData}
+          hasPreviousData={hasPreviousData}
         />
       </div>
       
@@ -381,12 +459,14 @@ export default function Reports() {
         isLoading={isLoading}
         analysisView={analysisView}
         setAnalysisView={setAnalysisView}
-        timelineData={timelineData}
+        dailyData={dailyData}      // Update prop name
         weeklyData={weeklyData}
+        monthlyData={monthlyData}  // Add new prop
         categoryData={categoryData}
         categoryColors={categoryColors}
         chartColors={CHART_COLORS}
         formatDateDisplay={formatDateDisplay}
+        transactions={transactions}
       />
     </div>
   );
