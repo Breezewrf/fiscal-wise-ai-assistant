@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { format, isAfter, isBefore, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, eachDayOfInterval, addMonths, subMonths, isFuture } from "date-fns";
+import { format, isAfter, isBefore, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, eachDayOfInterval, addMonths, subMonths, isFuture, addWeeks, addQuarters, addYears, subWeeks, subQuarters, subYears } from "date-fns";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { fetchTransactions, getExpensesByCategory, generateSpendingTrendData } from '@/lib/db/transactions';
 import { ExportOptions } from '@/components/reports/ExportOptions';
@@ -405,23 +405,71 @@ export default function Reports() {
   };
 
   const hasNextData = useMemo(() => {
-    const nextMonth = addMonths(dateRange.to, 1);
-    // Don't allow navigation to future months
-    if (isFuture(nextMonth)) return false;
-    
+    let nextPeriodStart: Date;
+    let nextPeriodEnd: Date;
+
+    switch (selectedPeriod) {
+      case 'week':
+        nextPeriodStart = addWeeks(dateRange.to, 1);
+        nextPeriodEnd = endOfWeek(nextPeriodStart);
+        break;
+      case 'month':
+        nextPeriodStart = addMonths(dateRange.to, 1);
+        nextPeriodEnd = endOfMonth(nextPeriodStart);
+        break;
+      case 'quarter':
+        nextPeriodStart = addQuarters(dateRange.to, 1);
+        nextPeriodEnd = endOfQuarter(nextPeriodStart);
+        break;
+      case 'year':
+        nextPeriodStart = addYears(dateRange.to, 1);
+        nextPeriodEnd = endOfYear(nextPeriodStart);
+        break;
+      default:
+        nextPeriodStart = addMonths(dateRange.to, 1);
+        nextPeriodEnd = endOfMonth(nextPeriodStart);
+    }
+
+    // Don't allow navigation to future periods
+    if (isFuture(nextPeriodStart)) return false;
+
     return allTransactions.some(transaction => 
       isAfter(transaction.date, dateRange.to) && 
-      isBefore(transaction.date, endOfMonth(nextMonth))
+      isBefore(transaction.date, nextPeriodEnd)
     );
-  }, [allTransactions, dateRange]);
+  }, [allTransactions, dateRange, selectedPeriod]);
 
   const hasPreviousData = useMemo(() => {
-    const previousMonth = subMonths(dateRange.from, 1);
+    let previousPeriodStart: Date;
+    let previousPeriodEnd: Date;
+
+    switch (selectedPeriod) {
+      case 'week':
+        previousPeriodStart = startOfWeek(subWeeks(dateRange.from, 1));
+        previousPeriodEnd = dateRange.from;
+        break;
+      case 'month':
+        previousPeriodStart = startOfMonth(subMonths(dateRange.from, 1));
+        previousPeriodEnd = dateRange.from;
+        break;
+      case 'quarter':
+        previousPeriodStart = startOfQuarter(subQuarters(dateRange.from, 1));
+        previousPeriodEnd = dateRange.from;
+        break;
+      case 'year':
+        previousPeriodStart = startOfYear(subYears(dateRange.from, 1));
+        previousPeriodEnd = dateRange.from;
+        break;
+      default:
+        previousPeriodStart = startOfMonth(subMonths(dateRange.from, 1));
+        previousPeriodEnd = dateRange.from;
+    }
+
     return allTransactions.some(transaction => 
-      isAfter(transaction.date, startOfMonth(previousMonth)) && 
-      isBefore(transaction.date, dateRange.from)
+      isAfter(transaction.date, previousPeriodStart) && 
+      isBefore(transaction.date, previousPeriodEnd)
     );
-  }, [allTransactions, dateRange]);
+  }, [allTransactions, dateRange, selectedPeriod]);
 
   return (
     <div className="animate-fade-in">
