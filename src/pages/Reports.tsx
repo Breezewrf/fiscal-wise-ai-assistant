@@ -241,7 +241,10 @@ export default function Reports() {
       
     const balance = income - expenses;
     
-    const days = Math.max(1, Math.round((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)));
+    // Calculate the number of days up to today or the end date, whichever is earlier
+    const today = new Date();
+    const effectiveEndDate = isFuture(dateRange.to) ? today : dateRange.to;
+    const days = Math.max(1, Math.round((effectiveEndDate.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)));
     
     return {
       income,
