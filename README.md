@@ -12,9 +12,9 @@ A smart personal finance management app that leverages Vision Language Models (V
     - [x] Real-time extraction of transaction details (amount, date, merchant)
     - [ ] Support for multiple formats (screenshots, photos, digital receipts)
         - [x] Support Alipay transaction auto import
-        - [ ] Support WechatPay transaction autp import
-        - [ ] 
-    - [x] Automatic categorization of expenses
+        - [x] Support WechatPay transaction auto import
+        - [ ] Support other formats...
+    - [ ] Automatic categorization of expenses
 
 - 🗂️ Smart Financial Assistant (LLM Integration)
     - [x] Natural language interaction for financial queries
@@ -23,8 +23,13 @@ A smart personal finance management app that leverages Vision Language Models (V
     - [ ] Goal-setting assistance and tracking
 
 
-- 📊 Advanced Analytics Dashboard
+- 📊 Advanced Analytics Reports
+    - [x] Selective date range
+    - [x] Daily expense visualization with bar chart
+    - [x] Financial Summary in specified period with bar chart, pie chart and categories list by daily, weekly and monthly.
+    - [ ] TBD...
 - 📱 Mobile-responsive UI
+    TBD...
 
 ## 🛠️ Development Setup
 
