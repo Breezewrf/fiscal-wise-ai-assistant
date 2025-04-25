@@ -8,6 +8,8 @@ import { ExportOptions } from '@/components/reports/ExportOptions';
 import { MetricCards } from '@/components/reports/MetricCards';
 import { PeriodSelect } from '@/components/reports/PeriodSelect';
 import { ReportTabs } from '@/components/reports/ReportTabs';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { Dialog } from '@headlessui/react';
 
 const CHART_COLORS = {
   income: '#087E8B',
@@ -26,6 +28,8 @@ export default function Reports() {
   const [showExportOptions, setShowExportOptions] = useState(false);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv' | 'pdf'>('json');
   const [analysisView, setAnalysisView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [showDayModal, setShowDayModal] = useState(false);
   const isMobile = useIsMobile();
   
   useEffect(() => {
@@ -227,6 +231,26 @@ export default function Reports() {
       };
     });
   }, [transactions, dateRange]);
+
+  const dailyExpenseBarData = useMemo(() => {
+    return eachDayOfInterval({ start: dateRange.from, end: dateRange.to }).map(day => {
+      const dayExpenses = transactions
+        .filter(t => t.type === 'expense' && format(t.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'))
+        .reduce((sum, t) => sum + t.amount, 0);
+      return {
+        date: day,
+        label: format(day, 'MMM d'),
+        expenses: dayExpenses,
+      };
+    });
+  }, [transactions, dateRange]);
+
+  const selectedDayExpenses = useMemo(() => {
+    if (!selectedDay) return [];
+    return transactions.filter(
+      t => t.type === 'expense' && format(t.date, 'yyyy-MM-dd') === format(selectedDay, 'yyyy-MM-dd')
+    );
+  }, [selectedDay, transactions]);
 
   const categoryColors = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D', '#BCA88E', '#8FB9AA', '#F28B66'];
 
@@ -511,13 +535,94 @@ export default function Reports() {
         formatDateDisplay={formatDateDisplay}
       />
       
+      {/* Daily Expenses Bar Chart */}
+      <div className="bg-white dark:bg-muted rounded-lg shadow p-4 mb-8">
+        <h2 className="text-lg font-semibold mb-2">Daily Expenses</h2>
+        <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
+          <BarChart
+            data={dailyExpenseBarData}
+            margin={{ top: 10, right: 30, left: 0, bottom: 20 }}
+            onClick={e => {
+              if (e && e.activeLabel) {
+                const clickedDay = dailyExpenseBarData.find(d => d.label === e.activeLabel);
+                if (clickedDay) {
+                  setSelectedDay(clickedDay.date);
+                  setShowDayModal(true);
+                }
+              }
+            }}
+          >
+            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 12 }} />
+            <Tooltip
+              formatter={(value: number) => [`$${value.toFixed(2)}`, 'Expenses']}
+              labelFormatter={label => `Date: ${label}`}
+              contentStyle={{
+                background: 'var(--background)',
+                borderRadius: 8,
+                border: '1px solid var(--muted)',
+                color: 'var(--foreground)'
+              }}
+            />
+            <Bar dataKey="expenses" fill="#F9627D" radius={[4, 4, 0, 0]}>
+              {dailyExpenseBarData.map((entry, idx) => (
+                <Cell key={`cell-${idx}`} cursor="pointer" />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <div className="text-xs text-muted-foreground mt-2">
+          Click a bar to view detailed expenses for that day.
+        </div>
+      </div>
+
+      {/* Day Expense Details Modal */}
+      <Dialog open={showDayModal} onClose={() => setShowDayModal(false)} className="fixed z-50 inset-0 overflow-y-auto">
+        <div className="flex items-center justify-center min-h-screen px-4">
+          <div className="fixed inset-0 bg-black opacity-30" aria-hidden="true" />
+          <div className="bg-white dark:bg-muted rounded-lg shadow-lg max-w-md w-full mx-auto z-10 p-6 relative">
+            <Dialog.Title className="text-lg font-bold mb-2">
+              Expenses on {selectedDay ? format(selectedDay, 'MMM d, yyyy') : ''}
+            </Dialog.Title>
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+              onClick={() => setShowDayModal(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            {selectedDayExpenses.length === 0 ? (
+              <div className="text-muted-foreground">No expenses recorded for this day.</div>
+            ) : (
+              <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                {selectedDayExpenses.map((exp, idx) => (
+                  <li key={idx} className="py-2 flex flex-col">
+                    <div className="flex justify-between">
+                      <span className="font-medium">{exp.category}</span>
+                      <span className="text-red-500 font-semibold">${exp.amount.toFixed(2)}</span>
+                    </div>
+                    {exp.description && (
+                      <span className="text-xs text-muted-foreground">{exp.description}</span>
+                    )}
+                    {exp.merchant && (
+                      <span className="text-xs text-muted-foreground">Merchant: {exp.merchant}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </Dialog>
+      
+      
       <ReportTabs
         isLoading={isLoading}
         analysisView={analysisView}
         setAnalysisView={setAnalysisView}
-        dailyData={dailyData}      // Update prop name
+        dailyData={dailyData}
         weeklyData={weeklyData}
-        monthlyData={monthlyData}  // Add new prop
+        monthlyData={monthlyData}
         categoryData={categoryData}
         categoryColors={categoryColors}
         chartColors={CHART_COLORS}

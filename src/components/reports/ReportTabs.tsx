@@ -49,10 +49,6 @@ export function ReportTabs({
 
   return (
     <Tabs defaultValue="overview">
-      <TabsList className="mb-6">
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-      </TabsList>
-      
       <TabsContent value="overview" className="space-y-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
