@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +16,7 @@ interface AuthContextType {
     data: any | null;
   }>;
   signOut: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>; // <-- Add this line
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -98,6 +98,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: 'https://bzlilvsvdliicxmfnxnu.supabase.co/auth/v1/callback',
+      },
+    });
+    if (error) {
+      toast({
+        title: "Google Sign-In failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const value = {
     user,
     session,
@@ -105,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signIn,
     signOut,
+    signInWithGoogle, // <-- Add this to the context value
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
