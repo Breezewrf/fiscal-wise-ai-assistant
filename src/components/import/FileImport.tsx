@@ -20,6 +20,7 @@ import { Transaction } from '@/components/transactions/TransactionList';
 import { importTransactions } from '@/lib/db/transactions';
 import Papa from 'papaparse';
 import { format } from "date-fns";
+import { ZipReader, BlobReader, TextWriter, Entry } from '@zip.js/zip.js';
 
 export const FileImport = () => {
   const { toast } = useToast();
@@ -36,6 +37,11 @@ export const FileImport = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+  const [zipFileSelected, setZipFileSelected] = useState<File | null>(null);
+  const [zipPassword, setZipPassword] = useState('');
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [zipExtractedCSV, setZipExtractedCSV] = useState<string | null>(null);
+  const [zipProcessing, setZipProcessing] = useState(false);
 
   const importTransactionsMutation = useMutation({
     mutationFn: importTransactions,
@@ -44,14 +50,136 @@ export const FileImport = () => {
     }
   });
 
+  const handleSourceChange = (value: string) => {
+    setSelectedSource(value);
+    setFileSelected(null);
+    setZipFileSelected(null);
+    setZipExtractedCSV(null);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setFileSelected(e.target.files[0]);
+      setZipFileSelected(null);
+      setZipExtractedCSV(null);
     }
   };
 
-  const handleSourceChange = (value: string) => {
-    setSelectedSource(value);
+  const handleZipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setZipFileSelected(e.target.files[0]);
+      setFileSelected(null);
+      setZipExtractedCSV(null);
+      setShowPasswordDialog(true);
+    }
+  };
+
+  const handleZipPasswordSubmit = async () => {
+    if (!zipFileSelected) return;
+    setZipProcessing(true);
+    try {
+      const reader = new ZipReader(new BlobReader(zipFileSelected), { password: zipPassword });
+      const entries = await reader.getEntries();
+      const csvEntry = entries.find((entry: Entry) => entry.filename.endsWith('.csv'));
+      if (!csvEntry) throw new Error('No CSV file found in zip.');
+      const text = await csvEntry.getData!(new TextWriter());
+      setZipExtractedCSV(text as string);
+      setShowPasswordDialog(false);
+      await reader.close();
+    } catch (err) {
+      toast({
+        title: "Unzip Failed",
+        description: (err as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setZipProcessing(false);
+      setZipPassword('');
+    }
+  };
+
+  const handleZipProcess = async () => {
+    if (!zipExtractedCSV) return;
+    setIsLoading(true);
+    try {
+      if (selectedSource === "alipay") {
+        Papa.parse<AlipayCSVRow>(zipExtractedCSV, {
+          header: true,
+          encoding: "UTF-8",
+          complete: async (results) => {
+            try {
+              const transactions = parseAlipayCSV(results);
+              const normalized = normalizeAlipayTransactions(transactions);
+              setPreviewData({
+                transactions: normalized,
+                totalAmount: normalized.reduce((sum, t) => {
+                  const amount = t.amount || 0;
+                  return sum + (t.type === 'expense' ? -amount : amount);
+                }, 0),
+                count: normalized.length
+              });
+              setIsPreviewOpen(true);
+            } catch (error) {
+              toast({
+                title: "Parsing Failed",
+                description: `Error: ${(error as Error).message}`,
+                variant: "destructive",
+              });
+            }
+          },
+          error: (error) => {
+            toast({
+              title: "CSV Parsing Failed",
+              description: `Error: ${error.message}`,
+              variant: "destructive",
+            });
+          }
+        });
+      } else if (selectedSource === "wechat") {
+        Papa.parse<WeChatCSVRow>(zipExtractedCSV, {
+          header: true,
+          encoding: "UTF-8",
+          complete: async (results) => {
+            try {
+              const transactions = parseWeChatCSV(results);
+              const normalized = normalizeWeChatTransactions(transactions);
+              setPreviewData({
+                transactions: normalized,
+                totalAmount: normalized.reduce((sum, t) => {
+                  const amount = t.amount || 0;
+                  return sum + (t.type === 'expense' ? -amount : amount);
+                }, 0),
+                count: normalized.length
+              });
+              setIsPreviewOpen(true);
+            } catch (error) {
+              toast({
+                title: "Parsing Failed",
+                description: `Error: ${(error as Error).message}`,
+                variant: "destructive",
+              });
+            }
+          },
+          error: (error) => {
+            toast({
+              title: "CSV Parsing Failed",
+              description: `Error: ${error.message}`,
+              variant: "destructive",
+            });
+          }
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Import Failed",
+        description: `Error: ${(error as Error).message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+      setZipFileSelected(null);
+      setZipExtractedCSV(null);
+    }
   };
 
   type AlipayCSVRow = {
@@ -433,42 +561,145 @@ export const FileImport = () => {
           <div className="space-y-2">
             <Label htmlFor="file">Select File</Label>
             <div className="grid gap-2">
-              <div 
-                className="border rounded-md p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => document.getElementById('file')?.click()}
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    {fileSelected 
-                      ? `Selected: ${fileSelected.name}`
-                      : selectedSource === "alipay" 
-                        ? "Upload your Alipay export file (.csv)"
-                        : "Drag and drop or click to upload"
-                    }
-                  </p>
-                  <Input 
-                    id="file" 
-                    type="file" 
-                    className="hidden" 
-                    onChange={handleFileChange}
-                    accept=".csv" 
-                  />
+              {(selectedSource === "alipay" || selectedSource === "wechat") && (
+                <div 
+                  className="border rounded-md p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => document.getElementById('file')?.click()}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {fileSelected 
+                        ? `Selected: ${fileSelected.name}`
+                        : zipFileSelected
+                          ? `Selected zip: ${zipFileSelected.name}`
+                          : "Upload your exported file (.csv)"
+                      }
+                    </p>
+                    <Input 
+                      id="file" 
+                      type="file" 
+                      className="hidden" 
+                      onChange={handleFileChange}
+                      accept=".csv" 
+                    />
+                  </div>
                 </div>
-              </div>
-              <Button 
-                onClick={handleFileUpload} 
-                disabled={isLoading || !fileSelected}
-                className={selectedSource === "alipay" ? "bg-blue-600 hover:bg-blue-700" : ""}
-              >
-                {isLoading ? "Processing..." : selectedSource === "alipay" ? "Import Alipay Transactions" : "Upload and Process"}
-              </Button>
+              )}
+              {(selectedSource === "alipay" || selectedSource === "wechat") && (
+                <div 
+                  className="border rounded-md p-4 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => document.getElementById('zipfile')?.click()}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">
+                      {zipFileSelected
+                        ? `Selected zip: ${zipFileSelected.name}`
+                        : "Or upload a password-protected zip file (.zip)"
+                      }
+                    </p>
+                    <Input
+                      id="zipfile"
+                      type="file"
+                      className="hidden"
+                      onChange={handleZipFileChange}
+                      accept=".zip"
+                    />
+                  </div>
+                </div>
+              )}
+              {/* Only show CSV upload for generic/bank */}
+              {(selectedSource === "generic" || selectedSource === "bank") && (
+                <div 
+                  className="border rounded-md p-8 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => document.getElementById('file')?.click()}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {fileSelected 
+                        ? `Selected: ${fileSelected.name}`
+                        : "Upload your CSV file"
+                      }
+                    </p>
+                    <Input 
+                      id="file" 
+                      type="file" 
+                      className="hidden" 
+                      onChange={handleFileChange}
+                      accept=".csv" 
+                    />
+                  </div>
+                </div>
+              )}
+              {/* Buttons */}
+              {(selectedSource === "alipay" || selectedSource === "wechat") && (
+                <>
+                  <Button 
+                    onClick={handleFileUpload} 
+                    disabled={isLoading || !fileSelected}
+                    className={selectedSource === "alipay" ? "bg-blue-600 hover:bg-blue-700" : ""}
+                  >
+                    {isLoading ? "Processing..." : "Import CSV"}
+                  </Button>
+                  <Button
+                    onClick={handleZipProcess}
+                    disabled={isLoading || !zipExtractedCSV}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {isLoading ? "Processing..." : "Process Zip"}
+                  </Button>
+                </>
+              )}
+              {(selectedSource === "generic" || selectedSource === "bank") && (
+                <Button 
+                  onClick={handleFileUpload} 
+                  disabled={isLoading || !fileSelected}
+                >
+                  {isLoading ? "Processing..." : "Upload and Process"}
+                </Button>
+              )}
             </div>
           </div>
           {renderDataPreview()}
         </CardContent>
       </Card>
       
+      {/* Password Dialog for Zip */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter Zip Password</DialogTitle>
+            <DialogDescription>
+              This zip file is password-protected. Please enter the password to extract the CSV.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="password"
+            placeholder="Password"
+            value={zipPassword}
+            onChange={e => setZipPassword(e.target.value)}
+            disabled={zipProcessing}
+          />
+          <DialogFooter>
+            <Button
+              onClick={() => setShowPasswordDialog(false)}
+              variant="secondary"
+              disabled={zipProcessing}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleZipPasswordSubmit}
+              disabled={zipProcessing || !zipPassword}
+            >
+              {zipProcessing ? "Extracting..." : "Extract"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent className="max-w-7xl h-[80vh] flex flex-col"> {/* Changed from max-w-4xl to max-w-7xl */}
           <DialogHeader>
