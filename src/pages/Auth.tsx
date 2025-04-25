@@ -105,11 +105,11 @@ export default function Auth() {
   };
 
   return (
-    <div className="container flex items-center justify-center min-h-screen py-12">
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Welcome to Fiscal Wise</CardTitle>
-          <CardDescription className="text-center">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-muted/40 via-background to-muted/60">
+      <Card className="w-full max-w-md mx-auto shadow-xl rounded-2xl border-0">
+        <CardHeader className="space-y-1 pb-2">
+          <CardTitle className="text-3xl font-extrabold text-center tracking-tight">Welcome to Fiscal Wise</CardTitle>
+          <CardDescription className="text-center text-base">
             Manage your finances simply and effectively
           </CardDescription>
         </CardHeader>
@@ -120,14 +120,14 @@ export default function Auth() {
             onValueChange={setActiveTab} 
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6 rounded-lg bg-muted/60">
+              <TabsTrigger value="login" className="rounded-lg">Login</TabsTrigger>
+              <TabsTrigger value="signup" className="rounded-lg">Sign Up</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="login" className="mt-4">
+            <TabsContent value="login" className="mt-2">
               <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
+                <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-6">
                   <FormField
                     control={loginForm.control}
                     name="email"
@@ -171,24 +171,34 @@ export default function Auth() {
                     )}
                   />
                   
-                  <Button type="submit" className="w-full" disabled={loginForm.formState.isSubmitting}>
+                  <Button 
+                    type="submit" 
+                    className="w-full py-2 rounded-lg font-semibold shadow-sm"
+                    disabled={loginForm.formState.isSubmitting}
+                  >
                     {loginForm.formState.isSubmitting ? "Signing in..." : "Sign In"}
                   </Button>
                 </form>
               </Form>
+              <div className="flex items-center my-4">
+                <div className="flex-grow border-t border-muted" />
+                <span className="mx-3 text-xs text-muted-foreground">or</span>
+                <div className="flex-grow border-t border-muted" />
+              </div>
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full py-2 rounded-lg font-semibold flex items-center justify-center gap-2"
                 onClick={handleGoogleSignIn}
                 type="button"
               >
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="h-5 w-5" />
                 Sign in with Google
               </Button>
             </TabsContent>
             
-            <TabsContent value="signup" className="mt-4">
+            <TabsContent value="signup" className="mt-2">
               <Form {...signupForm}>
-                <form onSubmit={signupForm.handleSubmit(onSignupSubmit)} className="space-y-4">
+                <form onSubmit={signupForm.handleSubmit(onSignupSubmit)} className="space-y-6">
                   <FormField
                     control={signupForm.control}
                     name="displayName"
@@ -275,7 +285,11 @@ export default function Auth() {
                     )}
                   />
                   
-                  <Button type="submit" className="w-full" disabled={signupForm.formState.isSubmitting}>
+                  <Button 
+                    type="submit" 
+                    className="w-full py-2 rounded-lg font-semibold shadow-sm"
+                    disabled={signupForm.formState.isSubmitting}
+                  >
                     {signupForm.formState.isSubmitting ? "Creating Account..." : "Create Account"}
                   </Button>
                 </form>
@@ -283,8 +297,8 @@ export default function Auth() {
             </TabsContent>
           </Tabs>
         </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="px-8 text-center text-sm text-muted-foreground">
+        <CardFooter className="flex justify-center pt-4">
+          <p className="px-8 text-center text-xs text-muted-foreground">
             By continuing, you agree to our Terms of Service and Privacy Policy.
           </p>
         </CardFooter>
