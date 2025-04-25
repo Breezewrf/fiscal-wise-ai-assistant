@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,7 +45,7 @@ type SignupFormValues = z.infer<typeof signupSchema>;
 
 export default function Auth() {
   const [activeTab, setActiveTab] = useState<string>("login");
-  const { user, signIn, signUp } = useAuth();
+  const { user, signIn, signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -99,6 +98,10 @@ export default function Auth() {
     } else {
       setActiveTab("login");
     }
+  };
+
+  const handleGoogleSignIn = async () => {
+    await signInWithGoogle();
   };
 
   return (
@@ -173,6 +176,14 @@ export default function Auth() {
                   </Button>
                 </form>
               </Form>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleGoogleSignIn}
+                type="button"
+              >
+                Sign in with Google
+              </Button>
             </TabsContent>
             
             <TabsContent value="signup" className="mt-4">
