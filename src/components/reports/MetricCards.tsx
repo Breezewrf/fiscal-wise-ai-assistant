@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, TrendingUp, TrendingDown, Percent } from 'lucide-react';
@@ -20,17 +19,17 @@ interface MetricCardsProps {
 
 export function MetricCards({ financialSummary, formatDateDisplay }: MetricCardsProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-4 mb-6">
-      <Card>
-        <CardHeader className="pb-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
+      <Card className="w-full">
+        <CardHeader className="pb-1 md:pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
             Total Income
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center">
-            <DollarSign className="h-5 w-5 text-green-500 mr-2" />
-            <div className="text-2xl font-bold">
+            <DollarSign className="h-4 w-4 md:h-5 md:w-5 text-green-500 mr-2" />
+            <div className="text-xl md:text-2xl font-bold truncate">
               ${financialSummary.income.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
@@ -40,16 +39,16 @@ export function MetricCards({ financialSummary, formatDateDisplay }: MetricCards
         </CardContent>
       </Card>
       
-      <Card>
-        <CardHeader className="pb-2">
+      <Card className="w-full">
+        <CardHeader className="pb-1 md:pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
             Total Expenses
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center">
-            <DollarSign className="h-5 w-5 text-red-500 mr-2" />
-            <div className="text-2xl font-bold">
+            <DollarSign className="h-4 w-4 md:h-5 md:w-5 text-red-500 mr-2" />
+            <div className="text-xl md:text-2xl font-bold truncate">
               ${financialSummary.expenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
@@ -59,8 +58,8 @@ export function MetricCards({ financialSummary, formatDateDisplay }: MetricCards
         </CardContent>
       </Card>
       
-      <Card>
-        <CardHeader className="pb-2">
+      <Card className="w-full">
+        <CardHeader className="pb-1 md:pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
             Net Balance
           </CardTitle>
@@ -68,12 +67,12 @@ export function MetricCards({ financialSummary, formatDateDisplay }: MetricCards
         <CardContent>
           <div className="flex items-center">
             {financialSummary.balance >= 0 ? (
-              <TrendingUp className="h-5 w-5 text-green-500 mr-2" />
+              <TrendingUp className="h-4 w-4 md:h-5 md:w-5 text-green-500 mr-2" />
             ) : (
-              <TrendingDown className="h-5 w-5 text-red-500 mr-2" />
+              <TrendingDown className="h-4 w-4 md:h-5 md:w-5 text-red-500 mr-2" />
             )}
             <div className={cn(
-              "text-2xl font-bold",
+              "text-xl md:text-2xl font-bold truncate",
               financialSummary.balance >= 0 ? "text-green-600" : "text-red-600"
             )}>
               ${Math.abs(financialSummary.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -85,16 +84,16 @@ export function MetricCards({ financialSummary, formatDateDisplay }: MetricCards
         </CardContent>
       </Card>
       
-      <Card>
-        <CardHeader className="pb-2">
+      <Card className="w-full">
+        <CardHeader className="pb-1 md:pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
             Savings Rate
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center">
-            <Percent className="h-5 w-5 text-primary mr-2" />
-            <div className="text-2xl font-bold">
+            <Percent className="h-4 w-4 md:h-5 md:w-5 text-primary mr-2" />
+            <div className="text-xl md:text-2xl font-bold truncate">
               {financialSummary.savingsRate.toFixed(1)}%
             </div>
           </div>

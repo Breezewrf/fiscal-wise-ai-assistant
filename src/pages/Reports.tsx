@@ -536,12 +536,12 @@ export default function Reports() {
       />
       
       {/* Daily Expenses Bar Chart */}
-      <div className="bg-white dark:bg-muted rounded-lg shadow p-4 mb-8">
+      <div className="bg-white dark:bg-muted rounded-lg shadow p-2 sm:p-4 mb-8">
         <h2 className="text-lg font-semibold mb-2">Daily Expenses</h2>
-        <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
+        <ResponsiveContainer width="100%" height={isMobile ? 160 : 300}>
           <BarChart
             data={dailyExpenseBarData}
-            margin={{ top: 10, right: 30, left: 0, bottom: 20 }}
+            margin={{ top: 10, right: 10, left: 0, bottom: isMobile ? 10 : 20 }}
             onClick={e => {
               if (e && e.activeLabel) {
                 const clickedDay = dailyExpenseBarData.find(d => d.label === e.activeLabel);
@@ -552,8 +552,8 @@ export default function Reports() {
               }
             }}
           >
-            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
+            <XAxis dataKey="label" tick={{ fontSize: isMobile ? 10 : 12 }} />
+            <YAxis tick={{ fontSize: isMobile ? 10 : 12 }} />
             <Tooltip
               formatter={(value: number) => [`$${value.toFixed(2)}`, 'Expenses']}
               labelFormatter={label => `Date: ${label}`}
