@@ -20,7 +20,7 @@ import { Transaction } from '@/components/transactions/TransactionList';
 import { importTransactions } from '@/lib/db/transactions';
 import Papa from 'papaparse';
 import { format } from "date-fns";
-import { ZipReader, BlobReader, TextWriter, Entry } from '@zip.js/zip.js';
+import { ZipReader, BlobReader, TextWriter, Entry, Uint8ArrayWriter } from '@zip.js/zip.js';
 
 export const FileImport = () => {
   const { toast } = useToast();
@@ -82,10 +82,24 @@ export const FileImport = () => {
       const entries = await reader.getEntries();
       const csvEntry = entries.find((entry: Entry) => entry.filename.endsWith('.csv'));
       if (!csvEntry) throw new Error('No CSV file found in zip.');
-      const text = await csvEntry.getData!(new TextWriter());
+      let text: string;
+      if (selectedSource === "alipay") {
+        const uint8Array = await csvEntry.getData!(new Uint8ArrayWriter());
+        const decoder = new TextDecoder('gbk');
+        text = decoder.decode(uint8Array);
+      } else if (selectedSource === "wechat") {
+        text = await csvEntry.getData!(new TextWriter());
+      } else {
+        text = await csvEntry.getData!(new TextWriter());
+      }
       setZipExtractedCSV(text as string);
       setShowPasswordDialog(false);
       await reader.close();
+      toast({
+        title: "Unzip Successful",
+        description: "The zip file was extracted successfully.",
+        variant: "default",
+      });
     } catch (err) {
       toast({
         title: "Unzip Failed",
@@ -103,11 +117,13 @@ export const FileImport = () => {
     setIsLoading(true);
     try {
       if (selectedSource === "alipay") {
+        const encoder = new TextEncoder();
         Papa.parse<AlipayCSVRow>(zipExtractedCSV, {
           header: true,
-          encoding: "UTF-8",
+          encoding: "GBK",
           complete: async (results) => {
             try {
+              console.log("Unzip Parsing Alipay CSV", results);
               const transactions = parseAlipayCSV(results);
               const normalized = normalizeAlipayTransactions(transactions);
               setPreviewData({
@@ -190,28 +206,55 @@ export const FileImport = () => {
   };
 
   const parseAlipayCSV = (results: Papa.ParseResult<AlipayCSVRow>): Partial<Transaction>[] => {
-    const dataRows = results.data.filter(
+    // Find the row with the header and __parsed_extra (contains all transactions)
+    const headerRow = results.data.find(
       (row) =>
-        row['------------------------------------------------------------------------------------'] &&
-        row['__parsed_extra'] &&
-        row['------------------------------------------------------------------------------------'] !== '交易时间'
+        row['------------------------------------------------------------------------------------'] === '交易时间' &&
+        Array.isArray(row['__parsed_extra'])
     );
+    if (!headerRow || !Array.isArray(headerRow['__parsed_extra'])) {
+      return [];
+    }
+    const fields = headerRow['__parsed_extra'];
+    const TRANSACTION_FIELD_COUNT = 12;
+    // Skip the first transaction item (the head)
+    const startIdx = TRANSACTION_FIELD_COUNT;
+    const transactions: Partial<Transaction>[] = [];
+    for (let i = startIdx; i + TRANSACTION_FIELD_COUNT <= fields.length; i += TRANSACTION_FIELD_COUNT) {
+      const [
+        category,
+        merchant,
+        account,
+        description,
+        typeStr,
+        amountStr,
+        method,
+        status,
+        orderId,
+        merchantOrderId,
+        remark,
+        dateStr
+      ] = fields.slice(i, i + TRANSACTION_FIELD_COUNT).map(f => (f ?? '').trim());
 
-    return dataRows.map((row) => {
-      const extraFields = row['__parsed_extra'] || [];
-      const isExpense = extraFields[4] === '支出';
-      const amount = parseFloat(extraFields[5]);
+      // Skip empty or non-transaction rows
+      if (!dateStr || !category || !typeStr || !amountStr) continue;
+      // Skip "不计收支"
+      if (typeStr === '不计收支') continue;
 
-      return {
-        date: new Date(row['------------------------------------------------------------------------------------']),
+      const isExpense = typeStr === '支出';
+      const amount = parseFloat(amountStr);
+
+      transactions.push({
+        date: new Date(dateStr.replace(/^\n/, '')), // Remove leading newline
         type: isExpense ? 'expense' : 'income',
-        category: extraFields[0] || 'Other',
+        category: category || 'Other',
         amount: amount,
-        description: extraFields[3] || '',
-        merchant: extraFields[1] || '',
+        description: description || '',
+        merchant: merchant || '',
         importedFrom: 'alipay',
-      };
-    });
+      });
+    }
+    return transactions;
   };
 
   const normalizeAlipayTransactions = (alipayTransactions: Partial<Transaction>[]): Partial<Transaction>[] => {
@@ -359,6 +402,13 @@ export const FileImport = () => {
     }
   };
 
+  const preprocessGBK = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    // @ts-ignore
+    const decoder = new TextDecoder('gbk');
+    return decoder.decode(arrayBuffer);
+  };
+
   const totalPages = Math.ceil((previewData?.transactions.length || 0) / itemsPerPage);
   const paginatedData = previewData?.transactions.slice(
     (currentPage - 1) * itemsPerPage,
@@ -378,14 +428,20 @@ export const FileImport = () => {
     setIsLoading(true);
     
     try {
-      const text = await fileSelected.text();
+      let text: string;
+      if (selectedSource === "alipay") {
+        text = await preprocessGBK(fileSelected);
+      } else {
+        text = await fileSelected.text();
+      }
       
       if (selectedSource === "alipay") {
         Papa.parse<AlipayCSVRow>(text, {
           header: true,
-          encoding: "UTF-8",
+          // encoding: "UTF-8",
           complete: async (results) => {
             try {
+              console.log("Parsing Alipay CSV", results);
               const transactions = parseAlipayCSV(results);
               const normalized = normalizeAlipayTransactions(transactions);
               setPreviewData({
