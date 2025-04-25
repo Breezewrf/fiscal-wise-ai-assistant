@@ -2,6 +2,8 @@
 
 ![React](https://img.shields.io/badge/React-18-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-orange)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/30025463-edce-4ac9-8c1e-cb7a76dcb514/deploy-status)](https://app.netlify.com/sites/fiscal-wise/deploys)
+![Website](https://img.shields.io/website?url=https://fiscal-wise.netlify.app)
 
 A smart personal finance management app that leverages Vision Language Models (VLM) for automated bill capture and Large Language Models (LLM) for interactive financial advisory, creating a seamless and intelligent personal finance experience.
 
