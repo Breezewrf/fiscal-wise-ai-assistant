@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { TransactionDetailsDialog } from "./TransactionDetailsDialog";
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ReportTabsProps {
   isLoading: boolean;
@@ -46,23 +47,24 @@ export function ReportTabs({
 }: ReportTabsProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showTransactionDetails, setShowTransactionDetails] = useState(false);
+  const isMobile = useIsMobile();
 
   return (
     <Tabs defaultValue="overview">
-      <TabsContent value="overview" className="space-y-6">
+      <TabsContent value="overview" className="space-y-4 md:space-y-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div>
+          <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0 pb-2">
+            <div className="space-y-1">
               <CardTitle>Financial Summary</CardTitle>
               <CardDescription>
                 Overview of your financial activity for {formatDateDisplay()}.
               </CardDescription>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap w-full md:w-auto gap-2">
               <Button 
                 variant="outline" 
                 size="sm"
-                className={analysisView === 'daily' ? "bg-primary/10" : ""}
+                className={`flex-1 md:flex-none ${analysisView === 'daily' ? "bg-primary/10" : ""}`}
                 onClick={() => setAnalysisView('daily')}
               >
                 <ChartLine className="h-4 w-4 mr-1" />
@@ -71,7 +73,7 @@ export function ReportTabs({
               <Button 
                 variant="outline" 
                 size="sm"
-                className={analysisView === 'weekly' ? "bg-primary/10" : ""}
+                className={`flex-1 md:flex-none ${analysisView === 'weekly' ? "bg-primary/10" : ""}`}
                 onClick={() => setAnalysisView('weekly')}
               >
                 <BarChartHorizontal className="h-4 w-4 mr-1" />
@@ -80,7 +82,7 @@ export function ReportTabs({
               <Button 
                 variant="outline" 
                 size="sm"
-                className={analysisView === 'monthly' ? "bg-primary/10" : ""}
+                className={`flex-1 md:flex-none ${analysisView === 'monthly' ? "bg-primary/10" : ""}`}
                 onClick={() => setAnalysisView('monthly')}
               >
                 <BarChartHorizontal className="h-4 w-4 mr-1" />
@@ -90,25 +92,35 @@ export function ReportTabs({
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-[300px] flex items-center justify-center">
+              <div className="h-[200px] flex items-center justify-center">
                 <p className="text-muted-foreground">Loading financial data...</p>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  <ChartView 
-                    analysisView={analysisView}
-                    dailyData={dailyData}
-                    weeklyData={weeklyData}
-                    monthlyData={monthlyData}
-                    chartColors={chartColors}
-                  />
-                  <CategoryChart 
-                    categoryData={categoryData}
-                    categoryColors={categoryColors}
-                    onCategorySelect={setSelectedCategory}
-                    selectedCategory={selectedCategory}
-                  />
+              <div className="space-y-4 md:space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                  <ScrollArea className="w-full overflow-x-auto">
+                    <div className={isMobile ? "min-w-[220px] h-[180px]" : "min-w-[300px] h-[320px]"}>
+                      <ChartView 
+                        analysisView={analysisView}
+                        dailyData={dailyData}
+                        weeklyData={weeklyData}
+                        monthlyData={monthlyData}
+                        chartColors={chartColors}
+                        isMobile={isMobile}
+                      />
+                    </div>
+                  </ScrollArea>
+                  <ScrollArea className="w-full overflow-x-auto">
+                    <div className={isMobile ? "min-w-[220px] h-[180px]" : "min-w-[300px] h-[320px]"}>
+                      <CategoryChart 
+                        categoryData={categoryData}
+                        categoryColors={categoryColors}
+                        onCategorySelect={setSelectedCategory}
+                        selectedCategory={selectedCategory}
+                        isMobile={isMobile}
+                      />
+                    </div>
+                  </ScrollArea>
                 </div>
                 <Card>
                   <CardHeader>
@@ -169,9 +181,10 @@ interface ChartViewProps {
     expenses: string;
     balance: string;
   };
+  isMobile: boolean;
 }
 
-function ChartView({ analysisView, dailyData, weeklyData, monthlyData, chartColors }: ChartViewProps) {
+function ChartView({ analysisView, dailyData, weeklyData, monthlyData, chartColors, isMobile }: ChartViewProps) {
   const getData = () => {
     switch (analysisView) {
       case 'daily':
@@ -186,9 +199,9 @@ function ChartView({ analysisView, dailyData, weeklyData, monthlyData, chartColo
   };
 
   return (
-    <div className="h-[400px] w-full">
+    <div className={isMobile ? "h-[180px] w-full" : "h-[320px] w-full"}>
       <ChartContainer
-        className="h-[400px]"
+        className={isMobile ? "h-[180px]" : "h-[320px]"}
         config={{
           income: { color: chartColors.income },
           expenses: { color: chartColors.expenses },
@@ -197,11 +210,12 @@ function ChartView({ analysisView, dailyData, weeklyData, monthlyData, chartColo
       >
         <AreaChart
           data={getData()}
-          margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
+          margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+          height={isMobile ? 160 : 300}
         >
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="name" />
-          <YAxis />
+          <XAxis dataKey="name" tick={{ fontSize: isMobile ? 10 : 12 }} />
+          <YAxis tick={{ fontSize: isMobile ? 10 : 12 }} />
           <ChartTooltip 
             content={({active, payload}) => {
               if (active && payload && payload.length) {
@@ -260,18 +274,19 @@ interface CategoryChartProps {
   categoryColors: string[];
   onCategorySelect: (category: string | null) => void;
   selectedCategory: string | null;
+  isMobile: boolean;
 }
 
-function CategoryChart({ categoryData, categoryColors, onCategorySelect, selectedCategory }: CategoryChartProps) {
+function CategoryChart({ categoryData, categoryColors, onCategorySelect, selectedCategory, isMobile }: CategoryChartProps) {
   return (
-    <div className="h-[400px] w-full">
+    <div className={isMobile ? "h-[180px] w-full" : "h-[320px] w-full"}>
       {categoryData.length === 0 ? (
         <div className="h-full w-full flex items-center justify-center">
           <p className="text-muted-foreground">No expense data available for this period</p>
         </div>
       ) : (
         <ChartContainer
-          className="h-[400px]"
+          className={isMobile ? "h-[180px]" : "h-[320px]"}
           config={Object.fromEntries(
             categoryData.slice(0, 8).map((cat, i) => [
               cat.name,
@@ -279,14 +294,14 @@ function CategoryChart({ categoryData, categoryColors, onCategorySelect, selecte
             ])
           )}
         >
-          <PieChart>
+          <PieChart width={isMobile ? 180 : 320} height={isMobile ? 180 : 320}>
             <Pie
               data={categoryData.slice(0, 8)}
               cx="50%"
               cy="50%"
               labelLine={false}
-              innerRadius={60}
-              outerRadius={80}
+              innerRadius={isMobile ? 36 : 60}
+              outerRadius={isMobile ? 54 : 80}
               paddingAngle={5}
               dataKey="amount"
               label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
