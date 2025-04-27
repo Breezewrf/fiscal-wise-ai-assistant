@@ -97,14 +97,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw error;
     }
   };
-
+  
+  const redirectTo =
+  window.location.hostname === "localhost"
+    ? "https://bzlilvsvdliicxmfnxnu.supabase.co/auth/v1/callback"
+    : 'https://fiscal-wise.netlify.app/';
+    
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'https://bzlilvsvdliicxmfnxnu.supabase.co/auth/v1/callback',
+        redirectTo
       },
     });
+    
     if (error) {
       toast({
         title: "Google Sign-In failed",
