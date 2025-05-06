@@ -59,66 +59,72 @@ export function TransactionDetailsDialog({
         <DialogHeader>
           <DialogTitle>{category} Transactions</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="flex-grow">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSort('date')}
-                    className="flex items-center gap-1"
-                  >
-                    Date
-                    <ArrowUpDown className="h-3 w-3" />
-                    {sortConfig.key === 'date' && (
-                      <span className="ml-1 text-xs">
-                        ({sortConfig.direction === 'asc' ? '↑' : '↓'})
-                      </span>
-                    )}
-                  </Button>
-                </TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSort('amount')}
-                    className="flex items-center gap-1"
-                  >
-                    Amount
-                    <ArrowUpDown className="h-3 w-3" />
-                    {sortConfig.key === 'amount' && (
-                      <span className="ml-1 text-xs">
-                        ({sortConfig.direction === 'asc' ? '↑' : '↓'})
-                      </span>
-                    )}
-                  </Button>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedTransactions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center py-4">
-                    No transactions found for this category
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sortedTransactions.map((transaction, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{format(transaction.date, 'MMM d, yyyy')}</TableCell>
-                    <TableCell>{transaction.description || 'No description'}</TableCell>
-                    <TableCell className="text-right">
-                      ${transaction.amount.toFixed(2)}
-                    </TableCell>
+        
+        {/* Explicitly set height for the ScrollArea to ensure scrollbar visibility */}
+        <div className="flex-grow overflow-hidden" style={{ maxHeight: 'calc(80vh - 120px)' }}>
+          <ScrollArea className="h-full" style={{ maxHeight: '100%' }}>
+            <div className="pr-4"> {/* Add right padding to prevent content from being hidden behind scrollbar */}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSort('date')}
+                        className="flex items-center gap-1"
+                      >
+                        Date
+                        <ArrowUpDown className="h-3 w-3" />
+                        {sortConfig.key === 'date' && (
+                          <span className="ml-1 text-xs">
+                            ({sortConfig.direction === 'asc' ? '↑' : '↓'})
+                          </span>
+                        )}
+                      </Button>
+                    </TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSort('amount')}
+                        className="flex items-center gap-1"
+                      >
+                        Amount
+                        <ArrowUpDown className="h-3 w-3" />
+                        {sortConfig.key === 'amount' && (
+                          <span className="ml-1 text-xs">
+                            ({sortConfig.direction === 'asc' ? '↑' : '↓'})
+                          </span>
+                        )}
+                      </Button>
+                    </TableHead>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </ScrollArea>
+                </TableHeader>
+                <TableBody>
+                  {sortedTransactions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-4">
+                        No transactions found for this category
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedTransactions.map((transaction, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{format(transaction.date, 'MMM d, yyyy')}</TableCell>
+                        <TableCell>{transaction.description || 'No description'}</TableCell>
+                        <TableCell className="text-right">
+                          ${transaction.amount.toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </ScrollArea>
+        </div>
         
         {transactions.length > 0 && (
           <div className="text-center text-xs text-muted-foreground mt-2 pt-2 border-t">
