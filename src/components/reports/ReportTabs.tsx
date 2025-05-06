@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import { 
   ComposedChart, CartesianGrid, XAxis, YAxis, 
-  Bar, Line, PieChart, Pie, Cell, Area, AreaChart 
+  Bar, Line, PieChart, Pie, Cell, Area, AreaChart, ResponsiveContainer // <-- add ResponsiveContainer
 } from 'recharts';
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -199,71 +199,72 @@ function ChartView({ analysisView, dailyData, weeklyData, monthlyData, chartColo
   };
 
   return (
-    <div className={isMobile ? "h-[180px] w-full" : "h-[320px] w-full"}>
+    <div className="w-full" style={{ height: isMobile ? 180 : 320 }}>
       <ChartContainer
-        className={isMobile ? "h-[180px]" : "h-[320px]"}
+        className="w-full h-full"
         config={{
           income: { color: chartColors.income },
           expenses: { color: chartColors.expenses },
           balance: { color: chartColors.balance }
         }}
       >
-        <AreaChart
-          data={getData()}
-          margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
-          height={isMobile ? 160 : 300}
-        >
-          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="name" tick={{ fontSize: isMobile ? 10 : 12 }} />
-          <YAxis tick={{ fontSize: isMobile ? 10 : 12 }} />
-          <ChartTooltip 
-            content={({active, payload}) => {
-              if (active && payload && payload.length) {
-                return (
-                  <div className="rounded-lg border bg-background p-2 shadow-sm">
-                    <div className="font-medium">{payload[0].payload.name}</div>
-                    {payload.map((entry, index) => (
-                      <div key={`item-${index}`} className="flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-1">
-                          <div
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: entry.color }}
-                          />
-                          {entry.name}:
-                        </span>
-                        <span className="font-medium">
-                          ${Number(entry.value).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              }
-              return null;
-            }}
-          />
-          <Area 
-            type="monotone" 
-            dataKey="income" 
-            stroke={chartColors.income} 
-            fill={chartColors.income} 
-            fillOpacity={0.2}
-          />
-          <Area 
-            type="monotone" 
-            dataKey="expenses" 
-            stroke={chartColors.expenses} 
-            fill={chartColors.expenses} 
-            fillOpacity={0.2}
-          />
-          <Area 
-            type="monotone" 
-            dataKey="balance" 
-            stroke={chartColors.balance} 
-            fill={chartColors.balance} 
-            fillOpacity={0.2}
-          />
-        </AreaChart>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={getData()}
+            margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: isMobile ? 10 : 12 }} />
+            <YAxis tick={{ fontSize: isMobile ? 10 : 12 }} />
+            <ChartTooltip 
+              content={({active, payload}) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <div className="rounded-lg border bg-background p-2 shadow-sm">
+                      <div className="font-medium">{payload[0].payload.name}</div>
+                      {payload.map((entry, index) => (
+                        <div key={`item-${index}`} className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1">
+                            <div
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: entry.color }}
+                            />
+                            {entry.name}:
+                          </span>
+                          <span className="font-medium">
+                            ${Number(entry.value).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Area 
+              type="monotone" 
+              dataKey="income" 
+              stroke={chartColors.income} 
+              fill={chartColors.income} 
+              fillOpacity={0.2}
+            />
+            <Area 
+              type="monotone" 
+              dataKey="expenses" 
+              stroke={chartColors.expenses} 
+              fill={chartColors.expenses} 
+              fillOpacity={0.2}
+            />
+            <Area 
+              type="monotone" 
+              dataKey="balance" 
+              stroke={chartColors.balance} 
+              fill={chartColors.balance} 
+              fillOpacity={0.2}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </ChartContainer>
     </div>
   );
@@ -279,14 +280,14 @@ interface CategoryChartProps {
 
 function CategoryChart({ categoryData, categoryColors, onCategorySelect, selectedCategory, isMobile }: CategoryChartProps) {
   return (
-    <div className={isMobile ? "h-[180px] w-full" : "h-[320px] w-full"}>
+    <div className="w-full" style={{ height: isMobile ? 180 : 320 }}>
       {categoryData.length === 0 ? (
         <div className="h-full w-full flex items-center justify-center">
           <p className="text-muted-foreground">No expense data available for this period</p>
         </div>
       ) : (
         <ChartContainer
-          className={isMobile ? "h-[180px]" : "h-[320px]"}
+          className="w-full h-full"
           config={Object.fromEntries(
             categoryData.slice(0, 8).map((cat, i) => [
               cat.name,
@@ -294,55 +295,57 @@ function CategoryChart({ categoryData, categoryColors, onCategorySelect, selecte
             ])
           )}
         >
-          <PieChart width={isMobile ? 180 : 320} height={isMobile ? 180 : 320}>
-            <Pie
-              data={categoryData.slice(0, 8)}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              innerRadius={isMobile ? 36 : 60}
-              outerRadius={isMobile ? 54 : 80}
-              paddingAngle={5}
-              dataKey="amount"
-              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-              onClick={(_, index) => onCategorySelect(categoryData[index].name)}
-            >
-              {categoryData.slice(0, 8).map((entry, index) => (
-                <Cell 
-                  key={`cell-${index}`} 
-                  fill={categoryColors[index % categoryColors.length]}
-                  opacity={selectedCategory === entry.name ? 1 : 0.7}
-                />
-              ))}
-            </Pie>
-            <ChartTooltip 
-              content={({active, payload}) => {
-                if (active && payload && payload.length) {
-                  return (
-                    <div className="rounded-lg border bg-background p-2 shadow-sm">
-                      <div className="grid gap-2">
-                        {payload.map((entry, index) => (
-                          <div key={`item-${index}`} className="flex items-center justify-between gap-2">
-                            <span className="flex items-center gap-1">
-                              <div
-                                className="h-2 w-2 rounded-full"
-                                style={{ backgroundColor: entry.color }}
-                              />
-                              {entry.name}:
-                            </span>
-                            <span className="font-medium">
-                              ${Number(entry.value).toFixed(2)}
-                            </span>
-                          </div>
-                        ))}
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={categoryData.slice(0, 8)}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                innerRadius={isMobile ? 36 : 60}
+                outerRadius={isMobile ? 54 : 80}
+                paddingAngle={5}
+                dataKey="amount"
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                onClick={(_, index) => onCategorySelect(categoryData[index].name)}
+              >
+                {categoryData.slice(0, 8).map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={categoryColors[index % categoryColors.length]}
+                    opacity={selectedCategory === entry.name ? 1 : 0.7}
+                  />
+                ))}
+              </Pie>
+              <ChartTooltip 
+                content={({active, payload}) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="rounded-lg border bg-background p-2 shadow-sm">
+                        <div className="grid gap-2">
+                          {payload.map((entry, index) => (
+                            <div key={`item-${index}`} className="flex items-center justify-between gap-2">
+                              <span className="flex items-center gap-1">
+                                <div
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ backgroundColor: entry.color }}
+                                />
+                                {entry.name}:
+                              </span>
+                              <span className="font-medium">
+                                ${Number(entry.value).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  );
-                }
-                return null;
-              }}
-            />
-          </PieChart>
+                    );
+                  }
+                  return null;
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
         </ChartContainer>
       )}
     </div>
