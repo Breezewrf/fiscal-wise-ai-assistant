@@ -18,10 +18,17 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
-const queryClient = new QueryClient();
+// Create a single QueryClient for the entire app
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1, // Decrease number of retries for better UX
+      staleTime: 30000, // 30 seconds
+    },
+  },
+});
 
 const App = () => {
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
