@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,11 +41,16 @@ export default function Dashboard() {
     queryFn: fetchTransactions
   });
   
-  const summary = getFinancialSummary(transactions);
-  const trends = getFinancialTrends(transactions);
-  const insights = generateMockInsights(transactions);
-  const spendingTrendData = generateSpendingTrendData(transactions);
-  const expenseBreakdownData = getExpensesByCategory(transactions);
+  // Make sure we have valid transactions before calculating
+  const validTransactions = React.useMemo(() => {
+    return Array.isArray(transactions) ? transactions.filter(t => t && t.date instanceof Date) : [];
+  }, [transactions]);
+  
+  const summary = getFinancialSummary(validTransactions);
+  const trends = getFinancialTrends(validTransactions);
+  const insights = generateMockInsights(validTransactions);
+  const spendingTrendData = generateSpendingTrendData(validTransactions);
+  const expenseBreakdownData = getExpensesByCategory(validTransactions);
   
   const COLORS = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D'];
 
@@ -191,13 +197,13 @@ export default function Dashboard() {
               <div className="h-24 flex items-center justify-center">
                 <p className="text-muted-foreground">Loading transactions...</p>
               </div>
-            ) : transactions.length === 0 ? (
+            ) : validTransactions.length === 0 ? (
               <div className="h-24 flex items-center justify-center">
                 <p className="text-muted-foreground">No transactions found</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {transactions.slice(0, 5).map(transaction => (
+                {validTransactions.slice(0, 5).map(transaction => (
                   <div key={transaction.id} className="flex items-center justify-between">
                     <div className="flex flex-col">
                       <span className="font-medium">{transaction.category}</span>

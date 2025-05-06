@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -70,21 +71,30 @@ export default function Reports() {
     setIsCustomRange(false);
   }, [selectedPeriod]);
 
+  // Fetch and validate transactions
   const { data: allTransactions = [], isLoading } = useQuery({
     queryKey: ['transactions'],
     queryFn: fetchTransactions
   });
   
-  const transactions = allTransactions.filter(transaction => {
-    const transactionDate = transaction.date;
-    return (
-      isAfter(transactionDate, startOfDay(dateRange.from)) && 
-      isBefore(transactionDate, endOfDay(dateRange.to))
-    );
-  });
+  // Validate transactions before use
+  const validAllTransactions = useMemo(() => {
+    return Array.isArray(allTransactions) ? allTransactions.filter(t => t && t.date instanceof Date) : [];
+  }, [allTransactions]);
   
-  const categoryData = getExpensesByCategory(transactions);
-  const timelineData = generateSpendingTrendData(transactions);
+  // Filter transactions by date range
+  const transactions = useMemo(() => {
+    return validAllTransactions.filter(transaction => {
+      const transactionDate = transaction.date;
+      return (
+        isAfter(transactionDate, startOfDay(dateRange.from)) && 
+        isBefore(transactionDate, endOfDay(dateRange.to))
+      );
+    });
+  }, [validAllTransactions, dateRange]);
+  
+  const categoryData = useMemo(() => getExpensesByCategory(transactions), [transactions]);
+  const timelineData = useMemo(() => generateSpendingTrendData(transactions), [transactions]);
   
   const weeklyData = useMemo(() => {
     const days = eachDayOfInterval({ 
@@ -103,13 +113,15 @@ export default function Reports() {
     });
     
     transactions.forEach(transaction => {
+      if (!transaction.date) return;
+      
       const dateStr = format(transaction.date, 'yyyy-MM-dd');
       const dayData = dailyData.find(d => d.formattedDate === dateStr);
       
       if (dayData) {
-        if (transaction.type === 'income') {
+        if (transaction.type === 'income' && typeof transaction.amount === 'number') {
           dayData.income += transaction.amount;
-        } else if (transaction.type === 'expense') {
+        } else if (transaction.type === 'expense' && typeof transaction.amount === 'number') {
           dayData.expenses += transaction.amount;
         }
         dayData.balance = dayData.income - dayData.expenses;
@@ -150,18 +162,19 @@ export default function Reports() {
     
     const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
     
-    const dailyData = weekDays.map(day => {
-      const dayTransactions = transactions.filter(t => 
-        format(t.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd')
-      );
+    return weekDays.map(day => {
+      const dayTransactions = transactions.filter(t => {
+        if (!t.date) return false;
+        return format(t.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
+      });
       
       const income = dayTransactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .filter(t => t.type === 'income' && typeof t.amount === 'number')
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
         
       const expenses = dayTransactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .filter(t => t.type === 'expense' && typeof t.amount === 'number')
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
       
       return {
         name: format(day, 'EEE'),
@@ -171,14 +184,14 @@ export default function Reports() {
         balance: income - expenses
       };
     });
-    
-    return dailyData;
   }, [transactions]);
   
   const monthlyData = useMemo(() => {
     const monthMap = new Map();
     
     transactions.forEach(transaction => {
+      if (!transaction.date) return;
+      
       const monthKey = format(transaction.date, 'MMM yyyy');
       
       if (!monthMap.has(monthKey)) {
@@ -192,9 +205,9 @@ export default function Reports() {
       }
       
       const monthData = monthMap.get(monthKey);
-      if (transaction.type === 'income') {
+      if (transaction.type === 'income' && typeof transaction.amount === 'number') {
         monthData.income += transaction.amount;
-      } else if (transaction.type === 'expense') {
+      } else if (transaction.type === 'expense' && typeof transaction.amount === 'number') {
         monthData.expenses += transaction.amount;
       }
       monthData.balance = monthData.income - monthData.expenses;
@@ -211,17 +224,18 @@ export default function Reports() {
     });
     
     return days.map(day => {
-      const dayTransactions = transactions.filter(t => 
-        format(t.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd')
-      );
+      const dayTransactions = transactions.filter(t => {
+        if (!t.date) return false;
+        return format(t.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
+      });
       
       const income = dayTransactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .filter(t => t.type === 'income' && typeof t.amount === 'number')
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
         
       const expenses = dayTransactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .filter(t => t.type === 'expense' && typeof t.amount === 'number')
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
       
       return {
         name: format(day, 'MMM d'),
@@ -235,8 +249,13 @@ export default function Reports() {
   const dailyExpenseBarData = useMemo(() => {
     return eachDayOfInterval({ start: dateRange.from, end: dateRange.to }).map(day => {
       const dayExpenses = transactions
-        .filter(t => t.type === 'expense' && format(t.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'))
-        .reduce((sum, t) => sum + t.amount, 0);
+        .filter(t => {
+          if (!t.date) return false;
+          return t.type === 'expense' && 
+            typeof t.amount === 'number' && 
+            format(t.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
+        })
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
       return {
         date: day,
         label: format(day, 'MMM d'),
@@ -247,21 +266,23 @@ export default function Reports() {
 
   const selectedDayExpenses = useMemo(() => {
     if (!selectedDay) return [];
-    return transactions.filter(
-      t => t.type === 'expense' && format(t.date, 'yyyy-MM-dd') === format(selectedDay, 'yyyy-MM-dd')
-    );
+    return transactions.filter(t => {
+      if (!t.date) return false;
+      return t.type === 'expense' && 
+        format(t.date, 'yyyy-MM-dd') === format(selectedDay, 'yyyy-MM-dd');
+    });
   }, [selectedDay, transactions]);
 
   const categoryColors = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D', '#BCA88E', '#8FB9AA', '#F28B66'];
 
   const financialSummary = useMemo(() => {
     const income = transactions
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter(t => t.type === 'income' && typeof t.amount === 'number')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
       
     const expenses = transactions
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter(t => t.type === 'expense' && typeof t.amount === 'number')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
       
     const balance = income - expenses;
     
@@ -460,11 +481,11 @@ export default function Reports() {
     // Don't allow navigation to future periods
     if (isFuture(nextPeriodStart)) return false;
 
-    return allTransactions.some(transaction => 
+    return validAllTransactions.some(transaction => 
       isAfter(transaction.date, dateRange.to) && 
       isBefore(transaction.date, nextPeriodEnd)
     );
-  }, [allTransactions, dateRange, selectedPeriod]);
+  }, [validAllTransactions, dateRange, selectedPeriod]);
 
   const hasPreviousData = useMemo(() => {
     let previousPeriodStart: Date;
@@ -492,11 +513,11 @@ export default function Reports() {
         previousPeriodEnd = dateRange.from;
     }
 
-    return allTransactions.some(transaction => 
+    return validAllTransactions.some(transaction => 
       isAfter(transaction.date, previousPeriodStart) && 
       isBefore(transaction.date, previousPeriodEnd)
     );
-  }, [allTransactions, dateRange, selectedPeriod]);
+  }, [validAllTransactions, dateRange, selectedPeriod]);
 
   return (
     <div className="animate-fade-in">
@@ -615,7 +636,6 @@ export default function Reports() {
         </div>
       </Dialog>
       
-      
       <ReportTabs
         isLoading={isLoading}
         analysisView={analysisView}
@@ -631,4 +651,156 @@ export default function Reports() {
       />
     </div>
   );
+
+  // Helper functions
+  function prepareExportData() {
+    const exportData = {
+      reportPeriod: `${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}`,
+      generatedAt: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+      summary: {
+        totalIncome: timelineData.reduce((sum, item) => sum + (item.income || 0), 0),
+        totalExpenses: timelineData.reduce((sum, item) => sum + (item.expenses || 0), 0),
+      },
+      categories: categoryData,
+      transactions: transactions.map(t => ({
+        date: format(t.date, 'yyyy-MM-dd'),
+        type: t.type,
+        category: t.category,
+        amount: t.amount,
+        description: t.description,
+        merchant: t.merchant
+      })),
+      timelineData,
+      weeklyAnalysis: weeklyData
+    };
+    
+    return exportData;
+  }
+
+  function convertToCSV(data: any) {
+    const headers = ['Date', 'Type', 'Category', 'Amount', 'Description', 'Merchant'];
+    
+    let csv = headers.join(',') + '\n';
+    
+    data.transactions.forEach((item: any) => {
+      const row = [
+        item.date,
+        item.type,
+        item.category,
+        item.amount,
+        item.description ? `"${item.description.replace(/"/g, '""')}"` : '',
+        item.merchant ? `"${item.merchant.replace(/"/g, '""')}"` : ''
+      ];
+      csv += row.join(',') + '\n';
+    });
+    
+    return csv;
+  }
+
+  function handleDownload() {
+    const data = prepareExportData();
+    
+    let blob: Blob;
+    let filename = `financial-report-${format(new Date(), 'yyyy-MM-dd')}`;
+    
+    switch (exportFormat) {
+      case 'csv':
+        const csvData = convertToCSV(data);
+        blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+        filename += '.csv';
+        break;
+      case 'pdf':
+        toast.info("PDF export would require a PDF generation library. Consider using jsPDF or similar library.");
+        setShowExportOptions(false);
+        return;
+      case 'json':
+      default:
+        const jsonString = JSON.stringify(data, null, 2);
+        blob = new Blob([jsonString], { type: 'application/json' });
+        filename += '.json';
+    }
+    
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success(`Report downloaded as ${exportFormat.toUpperCase()}`);
+    setShowExportOptions(false);
+  }
+
+  function handlePrint() {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        main, main * {
+          visibility: visible;
+        }
+        header, .print-hide {
+          display: none !important;
+        }
+        main {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    window.print();
+    
+    document.head.removeChild(style);
+    toast.success("Printing report");
+  }
+
+  function handleShare() {
+    if (navigator.share) {
+      navigator.share({
+        title: 'Financial Report',
+        text: `Financial report for ${format(dateRange.from, 'MMM d, yyyy')} to ${format(dateRange.to, 'MMM d, yyyy')}`,
+        url: window.location.href,
+      })
+        .then(() => toast.success("Shared successfully"))
+        .catch((error) => {
+          console.error("Share error:", error);
+          if (error.name !== 'AbortError') {
+            toast.error("Error sharing: " + error.message);
+          }
+        });
+    } else {
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => toast.success("Report URL copied to clipboard"))
+        .catch(() => toast.error("Failed to copy URL"));
+    }
+  }
+
+  function formatDateDisplay() {
+    if (isCustomRange) {
+      return `${format(dateRange.from, 'MMM d, yyyy')} - ${format(dateRange.to, 'MMM d, yyyy')}`;
+    }
+    
+    switch (selectedPeriod) {
+      case 'week':
+        return 'This Week';
+      case 'month':
+        return 'This Month';
+      case 'quarter':
+        return 'This Quarter';
+      case 'year':
+        return 'This Year';
+      case 'all':
+        return 'All Time';
+      default:
+        return 'Selected Period';
+    }
+  }
 }

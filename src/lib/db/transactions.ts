@@ -1,3 +1,4 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 import { Transaction } from '@/components/transactions/TransactionList';
@@ -175,25 +176,30 @@ export function getFinancialSummary(transactions: Transaction[]): FinancialSumma
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
   
+  // Ensure we're filtering by month and handling the Date comparison correctly
   const monthTransactions = transactions.filter(t => {
-    const date = new Date(t.date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    if (!t.date) return false;
+    return t.date.getMonth() === currentMonth && t.date.getFullYear() === currentYear;
   });
 
+  // Ensure we're properly calculating totals with null/undefined checks
   const totalIncome = monthTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
+    .filter(t => t.type === 'income' && typeof t.amount === 'number')
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
 
   const totalExpenses = monthTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
+    .filter(t => t.type === 'expense' && typeof t.amount === 'number')
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
 
   const daysPassed = getDaysPassed();
+  
+  // Avoid division by zero
+  const daysToUse = daysPassed > 0 ? daysPassed : 1;
 
   return {
-    income: totalIncome / daysPassed,  // Daily average income
-    expenses: totalExpenses / daysPassed,  // Daily average expenses
-    balance: (totalIncome - totalExpenses) / daysPassed  // Daily average balance
+    income: totalIncome / daysToUse,
+    expenses: totalExpenses / daysToUse,
+    balance: (totalIncome - totalExpenses) / daysToUse
   };
 }
 
@@ -203,43 +209,55 @@ export function getFinancialTrends(transactions: Transaction[]) {
   const currentYear = new Date().getFullYear();
   const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
-  // Current month transactions
+  // Improve filtering by ensuring date objects exist
   const currentMonthData = transactions.filter(t => {
-    const date = new Date(t.date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    if (!t.date) return false;
+    return t.date.getMonth() === currentMonth && t.date.getFullYear() === currentYear;
   });
 
-  // Last month transactions
   const lastMonthData = transactions.filter(t => {
-    const date = new Date(t.date);
-    return date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
+    if (!t.date) return false;
+    return t.date.getMonth() === lastMonth && t.date.getFullYear() === lastMonthYear;
   });
 
-  // Calculate daily averages for both months
+  // Calculate daily averages with proper checks
   const currentDaysPassed = getDaysPassed();
   const lastMonthDays = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+  
+  // Avoid division by zero
+  const currentDaysToUse = currentDaysPassed > 0 ? currentDaysPassed : 1;
+  const lastMonthDaysToUse = lastMonthDays > 0 ? lastMonthDays : 1;
 
   const currentAvg = {
-    income: currentMonthData.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) / currentDaysPassed,
-    expenses: currentMonthData.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) / currentDaysPassed
+    income: currentMonthData
+      .filter(t => t.type === 'income' && typeof t.amount === 'number')
+      .reduce((sum, t) => sum + (t.amount || 0), 0) / currentDaysToUse,
+    expenses: currentMonthData
+      .filter(t => t.type === 'expense' && typeof t.amount === 'number')
+      .reduce((sum, t) => sum + (t.amount || 0), 0) / currentDaysToUse
   };
 
   const lastAvg = {
-    income: lastMonthData.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) / lastMonthDays,
-    expenses: lastMonthData.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) / lastMonthDays
+    income: lastMonthData
+      .filter(t => t.type === 'income' && typeof t.amount === 'number')
+      .reduce((sum, t) => sum + (t.amount || 0), 0) / lastMonthDaysToUse,
+    expenses: lastMonthData
+      .filter(t => t.type === 'expense' && typeof t.amount === 'number')
+      .reduce((sum, t) => sum + (t.amount || 0), 0) / lastMonthDaysToUse
   };
 
-  // Calculate trend percentages
+  // Calculate trend percentages with safety checks to avoid division by zero
   return {
     income: {
-      trend: lastAvg.income ? ((currentAvg.income - lastAvg.income) / lastAvg.income) * 100 : 0
+      trend: lastAvg.income > 0 ? ((currentAvg.income - lastAvg.income) / lastAvg.income) * 100 : (currentAvg.income > 0 ? 100 : 0)
     },
     expenses: {
-      trend: lastAvg.expenses ? ((currentAvg.expenses - lastAvg.expenses) / lastAvg.expenses) * 100 : 0
+      trend: lastAvg.expenses > 0 ? ((currentAvg.expenses - lastAvg.expenses) / lastAvg.expenses) * 100 : (currentAvg.expenses > 0 ? 100 : 0)
     },
     balance: {
-      trend: lastAvg.income - lastAvg.expenses ? 
-        (((currentAvg.income - currentAvg.expenses) - (lastAvg.income - lastAvg.expenses)) / Math.abs(lastAvg.income - lastAvg.expenses)) * 100 : 0
+      trend: Math.abs(lastAvg.income - lastAvg.expenses) > 0 ? 
+        (((currentAvg.income - currentAvg.expenses) - (lastAvg.income - lastAvg.expenses)) / Math.abs(lastAvg.income - lastAvg.expenses)) * 100 : 
+        ((currentAvg.income - currentAvg.expenses) > 0 ? 100 : 0)
     }
   };
 }
@@ -247,11 +265,18 @@ export function getFinancialTrends(transactions: Transaction[]) {
 export const getExpensesByCategory = (transactions: Transaction[]) => {
   const expensesByCategory: Record<string, number> = {};
   
+  // Add safety check to ensure transactions array exists
+  if (!Array.isArray(transactions)) {
+    console.error("Expected transactions to be an array but got", typeof transactions);
+    return [];
+  }
+  
   transactions
-    .filter(t => t.type === 'expense')
+    .filter(t => t && t.type === 'expense' && typeof t.amount === 'number')
     .forEach(transaction => {
-      const category = transaction.category;
-      expensesByCategory[category] = (expensesByCategory[category] || 0) + transaction.amount;
+      // Check if category exists, use 'Uncategorized' as default
+      const category = transaction.category || 'Uncategorized';
+      expensesByCategory[category] = (expensesByCategory[category] || 0) + (transaction.amount || 0);
     });
   
   return Object.entries(expensesByCategory)
@@ -260,6 +285,7 @@ export const getExpensesByCategory = (transactions: Transaction[]) => {
 };
 
 export const generateSpendingTrendData = (transactions: Transaction[]) => {
+  // Default month structure with empty values
   const months: Record<string, { income: number; expenses: number }> = {
     'Jan': { income: 0, expenses: 0 },
     'Feb': { income: 0, expenses: 0 },
@@ -275,16 +301,24 @@ export const generateSpendingTrendData = (transactions: Transaction[]) => {
     'Dec': { income: 0, expenses: 0 },
   };
   
-  transactions.forEach(transaction => {
-    const date = transaction.date;
-    const month = date.toLocaleString('en-US', { month: 'short' });
-    
-    if (transaction.type === 'income') {
-      months[month].income += transaction.amount;
-    } else {
-      months[month].expenses += transaction.amount;
-    }
-  });
+  // Check if transactions is an array before processing
+  if (Array.isArray(transactions)) {
+    transactions.forEach(transaction => {
+      if (!transaction || !transaction.date) return;
+      
+      const date = transaction.date;
+      const month = date.toLocaleString('en-US', { month: 'short' });
+      
+      // Check if month is valid before updating
+      if (months[month]) {
+        if (transaction.type === 'income' && typeof transaction.amount === 'number') {
+          months[month].income += transaction.amount;
+        } else if (transaction.type === 'expense' && typeof transaction.amount === 'number') {
+          months[month].expenses += transaction.amount;
+        }
+      }
+    });
+  }
   
   return Object.entries(months).map(([name, data]) => ({
     name,
