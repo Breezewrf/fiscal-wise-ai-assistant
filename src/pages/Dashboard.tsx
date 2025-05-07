@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useUser } from "@clerk/nextjs";
 import { toast } from 'sonner';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { fetchTransactions, deleteTransaction, getExpensesByCategory } from '@/lib/db/transactions';
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart';
+import { useQuery } from '@tanstack/react-query';
 
 interface DataTableProps {
   transactions: any[];
@@ -81,7 +81,7 @@ function DataTable({ transactions }: DataTableProps) {
                 <td className="p-4 pr-6 text-right">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="xs" disabled={deletingTransactionId === transaction.id}>
+                      <Button variant="destructive" size="sm" disabled={deletingTransactionId === transaction.id}>
                         {deletingTransactionId === transaction.id ? 'Deleting...' : 'Delete'}
                       </Button>
                     </AlertDialogTrigger>
@@ -133,7 +133,6 @@ function useDataFetching() {
   const [date, setDate] = React.useState<Date>(new Date());
   const [transactions, setTransactions] = React.useState<any[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const { user } = useUser();
 
   const { data: allTransactions = [], refetch } = useFetchTransactions();
 
@@ -176,15 +175,11 @@ function useDataFetching() {
 }
 
 function useFetchTransactions() {
-  const { user } = useUser();
-  return useMemo(() => {
-    return useQuery({
-      queryKey: ['transactions', user?.id],
-      queryFn: () => fetchTransactions(),
-      enabled: !!user?.id,
-      retry: false,
-    });
-  }, [user?.id]);
+  return useQuery({
+    queryKey: ['transactions'],
+    queryFn: () => fetchTransactions(),
+    retry: false,
+  });
 }
 
 export default function Dashboard() {
