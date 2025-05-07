@@ -223,18 +223,18 @@ export default function Dashboard() {
   const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
 
   return (
-    <div className="container py-10">
-      <div className="flex items-center justify-between">
+    <div className="container px-4 py-6 md:py-10">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h1>
           <Badge variant="secondary">{isToday(date) ? "Today" : formattedDate}</Badge>
         </div>
 
-        <div className="flex items-center">
+        <div className="w-full sm:w-auto">
           <DatePicker
             date={date}
             onDateChange={handleDateChange}
-            className="border-none shadow-none"
+            className="w-full sm:w-auto border-none shadow-none"
             showNavigation={true}
           />
         </div>
@@ -242,8 +242,8 @@ export default function Dashboard() {
 
       <Separator className="my-4" />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
+        <Card className="col-span-1">
           <CardHeader>
             <CardTitle>Total Income</CardTitle>
             <CardDescription>Income for {formattedDate}</CardDescription>
@@ -253,7 +253,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+        <Card className="col-span-1">
           <CardHeader>
             <CardTitle>Total Expenses</CardTitle>
             <CardDescription>Expenses for {formattedDate}</CardDescription>
@@ -263,7 +263,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+        <Card className="col-span-1">
           <CardHeader>
             <CardTitle>Net Balance</CardTitle>
             <CardDescription>Income less expenses for {formattedDate}</CardDescription>
@@ -273,7 +273,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+        <Card className="col-span-1">
           <CardHeader>
             <CardTitle>Savings Rate</CardTitle>
             <CardDescription>Savings rate for {formattedDate}</CardDescription>
@@ -285,9 +285,9 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="lg:col-span-1">
-          <CardHeader className="flex flex-row items-center justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
+        <Card className="col-span-1 h-full">
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0">
             <div>
               <CardTitle>Today's Transactions</CardTitle>
               <CardDescription>
@@ -295,20 +295,20 @@ export default function Dashboard() {
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[300px]">
+          <CardContent className="p-2 sm:p-4">
+            <ScrollArea className="h-[300px] sm:h-[400px]">
               <DataTable transactions={transactions} />
             </ScrollArea>
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-1">
+        <Card className="col-span-1 h-full">
           <CardHeader>
             <CardTitle>Spending by Category</CardTitle>
             <CardDescription>Your spending for {formattedDate}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col">
-            <div className="h-[300px] w-full p-4">
+            <div className="h-[300px] sm:h-[400px] w-full p-2 sm:p-4">
               <CategoryPieChart 
                 categoryData={topCategories} 
                 categoryColors={['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D', '#BCA88E', '#8FB9AA', '#F28B66']}
