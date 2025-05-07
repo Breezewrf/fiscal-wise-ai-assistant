@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { subMonths, format, addMonths, isSameDay, isToday } from "date-fns";
+import { subMonths, format, addMonths, isSameDay, isToday, startOfDay, endOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -58,26 +58,24 @@ function DataTable({ transactions }: DataTableProps) {
 
   return (
     <div className="rounded-md border">
-      <div className="relative w-full overflow-auto">
+      <div className="relative w-full overflow-auto max-h-[300px]">
         <table className="w-full table-auto text-sm">
-          <thead className="[&_th]:px-4 [&_th]:py-2 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6">
-            <tr className="border-b">
-              <th>Description</th>
-              <th>Amount</th>
-              <th>Category</th>
-              <th>Type</th>
-              <th>Date</th>
-              <th className="text-right">Actions</th>
+          <thead className="sticky top-0 bg-background [&_th]:px-4 [&_th]:py-2 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6 border-b">
+            <tr>
+              <th className="w-[100px]">Date</th>
+              <th className="w-[120px]">Category</th>
+              <th className="w-[180px]">Description</th>
+              <th className="w-[100px]">Amount</th>
+              <th className="w-[90px] text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {transactions.map((transaction) => (
               <tr key={transaction.id} className="border-b transition-colors hover:bg-muted/50 data-[selected=true]:bg-muted">
-                <td className="p-4 pl-6">{transaction.description}</td>
-                <td className="p-4">{transaction.amount}</td>
+                <td className="p-4 pl-6">{format(transaction.date, 'HH:mm')}</td>
                 <td className="p-4">{transaction.category}</td>
-                <td className="p-4">{transaction.type}</td>
-                <td className="p-4">{format(transaction.date, 'MMM d, yyyy')}</td>
+                <td className="p-4 truncate max-w-[180px]">{transaction.description}</td>
+                <td className="p-4">{transaction.amount}</td>
                 <td className="p-4 pr-6 text-right">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -142,33 +140,33 @@ function useDataFetching() {
     }
   }, [allTransactions]);
 
-  const formattedDate = useMemo(() => format(date, 'MMMM yyyy'), [date]);
+  const formattedDate = useMemo(() => format(date, 'PPP'), [date]);
 
-  const handleMonthChange = (newDate: Date) => {
+  const handleDateChange = (newDate: Date) => {
     setDate(newDate);
   };
 
-  const recentTransactions = useMemo(() => {
-    const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-    const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  const todayTransactions = useMemo(() => {
+    const startOfSelectedDay = startOfDay(date);
+    const endOfSelectedDay = endOfDay(date);
 
     return allTransactions.filter(transaction => {
       if (!transaction.date) return false;
-      return transaction.date >= startOfMonth && transaction.date <= endOfMonth;
+      return transaction.date >= startOfSelectedDay && transaction.date <= endOfSelectedDay;
     });
   }, [date, allTransactions]);
 
   const topCategories = useMemo(() => {
-    // Get the top spending categories
-    return getExpensesByCategory(recentTransactions).slice(0, 8);
-  }, [recentTransactions]);
+    // Get the top spending categories for today's transactions
+    return getExpensesByCategory(todayTransactions).slice(0, 8);
+  }, [todayTransactions]);
 
   return {
     date,
     formattedDate,
-    transactions: recentTransactions,
+    transactions: todayTransactions,
     isLoading,
-    handleMonthChange,
+    handleDateChange,
     refetch,
     topCategories
   };
@@ -188,7 +186,7 @@ export default function Dashboard() {
     formattedDate,
     transactions,
     isLoading,
-    handleMonthChange,
+    handleDateChange,
     refetch,
     topCategories
   } = useDataFetching();
@@ -218,19 +216,26 @@ export default function Dashboard() {
     );
   }
 
+  const transactionsForToday = transactions.length;
+  const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const balance = income - expenses;
+  const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
+
   return (
     <div className="container py-10">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <Badge variant="secondary">{formattedDate}</Badge>
+          <Badge variant="secondary">{isToday(date) ? "Today" : formattedDate}</Badge>
         </div>
 
         <div className="flex items-center">
           <DatePicker
             date={date}
-            onMonthChange={handleMonthChange}
+            onDateChange={handleDateChange}
             className="border-none shadow-none"
+            showNavigation={true}
           />
         </div>
       </div>
@@ -244,10 +249,7 @@ export default function Dashboard() {
             <CardDescription>Income for {formattedDate}</CardDescription>
           </CardHeader>
           <CardContent>
-            ${transactions
-              .filter(t => t.type === 'income')
-              .reduce((sum, t) => sum + t.amount, 0)
-              .toFixed(2)}
+            ${income.toFixed(2)}
           </CardContent>
         </Card>
 
@@ -257,10 +259,7 @@ export default function Dashboard() {
             <CardDescription>Expenses for {formattedDate}</CardDescription>
           </CardHeader>
           <CardContent>
-            ${transactions
-              .filter(t => t.type === 'expense')
-              .reduce((sum, t) => sum + t.amount, 0)
-              .toFixed(2)}
+            ${expenses.toFixed(2)}
           </CardContent>
         </Card>
 
@@ -270,12 +269,7 @@ export default function Dashboard() {
             <CardDescription>Income less expenses for {formattedDate}</CardDescription>
           </CardHeader>
           <CardContent>
-            ${(transactions
-              .filter(t => t.type === 'income')
-              .reduce((sum, t) => sum + t.amount, 0) -
-              transactions
-                .filter(t => t.type === 'expense')
-                .reduce((sum, t) => sum + t.amount, 0)).toFixed(2)}
+            ${balance.toFixed(2)}
           </CardContent>
         </Card>
 
@@ -285,36 +279,33 @@ export default function Dashboard() {
             <CardDescription>Savings rate for {formattedDate}</CardDescription>
           </CardHeader>
           <CardContent>
-            {(() => {
-              const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-              const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-              const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
-              return (
-                <>
-                  <span className="text-xl font-bold">{savingsRate.toFixed(2)}%</span>
-                  <Progress value={savingsRate} className="mt-2" />
-                </>
-              );
-            })()}
+            <span className="text-xl font-bold">{savingsRate.toFixed(2)}%</span>
+            <Progress value={savingsRate} className="mt-2" />
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Recent Transactions</CardTitle>
-            <CardDescription>Your most recent transactions.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Today's Transactions</CardTitle>
+              <CardDescription>
+                {transactionsForToday} transaction{transactionsForToday !== 1 ? 's' : ''} for {formattedDate}
+              </CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
-            <DataTable transactions={transactions} />
+            <ScrollArea className="h-[300px]">
+              <DataTable transactions={transactions} />
+            </ScrollArea>
           </CardContent>
         </Card>
 
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Spending by Category</CardTitle>
-            <CardDescription>Your spending habits this month.</CardDescription>
+            <CardDescription>Your spending for {formattedDate}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col">
             <div className="h-[300px] w-full p-4">
