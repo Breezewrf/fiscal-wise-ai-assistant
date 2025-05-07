@@ -1,0 +1,10 @@
+
+# Netlify configuration for React Router SPA
+# This file ensures that all routes are handled by index.html
+
+# The following redirect rule tells Netlify to return the index.html instead of a 404
+# for any path that doesn't match a static file
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
