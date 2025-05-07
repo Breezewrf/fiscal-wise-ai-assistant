@@ -1,245 +1,332 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useUser } from "@clerk/nextjs";
+import { toast } from 'sonner';
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import { subMonths, format, addMonths, isSameDay, isToday } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { CalendarIcon, CreditCard, LayoutDashboard, ListChecks, PieChart, Settings } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { useIsMobile } from '@/hooks/use-mobile';
+import { fetchTransactions, deleteTransaction, getExpensesByCategory } from '@/lib/db/transactions';
+import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart';
 
-import React, { useState } from 'react';
-import { StatCard } from '@/components/ui/stat-card';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  DollarSign, 
-  TrendingUp,
-  TrendingDown,
-  CreditCard, 
-  LineChart, 
-  PieChart,
-  Lightbulb
-} from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  PieChart as RechartsPieChart,
-  Pie,
-  Cell,
-  Legend
-} from 'recharts';
-import { Transaction } from '@/components/transactions/TransactionList';
-import { 
-  getFinancialSummary,
-  generateSpendingTrendData,
-  getExpensesByCategory,
-  getFinancialTrends
-} from '@/lib/db/transactions';
-import { generateMockInsights } from '@/lib/mock-data';
-import { useQuery } from '@tanstack/react-query';
-import { fetchTransactions } from '@/lib/db/transactions';
+interface DataTableProps {
+  transactions: any[];
+}
 
-export default function Dashboard() {
-  const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['transactions'],
-    queryFn: fetchTransactions
-  });
-  
-  // Make sure we have valid transactions before calculating
-  const validTransactions = React.useMemo(() => {
-    return Array.isArray(transactions) ? transactions.filter(t => t && t.date instanceof Date) : [];
-  }, [transactions]);
-  
-  const summary = getFinancialSummary(validTransactions);
-  const trends = getFinancialTrends(validTransactions);
-  const insights = generateMockInsights(validTransactions);
-  const spendingTrendData = generateSpendingTrendData(validTransactions);
-  const expenseBreakdownData = getExpensesByCategory(validTransactions);
-  
-  const COLORS = ['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D'];
+function DataTable({ transactions }: DataTableProps) {
+  const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
+  const { refetch } = useDataFetching();
+  const isMobile = useIsMobile();
+
+  const handleDelete = async (transactionId: string) => {
+    setDeletingTransactionId(transactionId);
+    try {
+      await deleteTransaction(transactionId);
+      toast.success("Transaction deleted successfully!");
+      refetch(); // Refresh transactions after deletion
+    } catch (error) {
+      console.error("Error deleting transaction:", error);
+      toast.error("Failed to delete transaction.");
+    } finally {
+      setDeletingTransactionId(null);
+    }
+  };
 
   return (
-    <div className="animate-fade-in">
-      <h1 className="text-3xl font-bold tracking-tight mb-6">Dashboard</h1>
-      
-      <div className="grid gap-4 md:grid-cols-3 mb-8">
-        <StatCard 
-          title="Average Daily Income"
-          value={`$${summary.income.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          icon={<TrendingUp className="h-5 w-5 text-green-500" />}
-          description="Average daily income this month"
-          trend={{ value: trends.income.trend, isPositive: trends.income.trend >= 0 }}
-        />
-        
-        <StatCard 
-          title="Average Daily Expenses"
-          value={`$${summary.expenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          icon={<TrendingDown className="h-5 w-5 text-red-500" />}
-          description="Average daily expenses this month"
-          trend={{ value: Math.abs(trends.expenses.trend), isPositive: trends.expenses.trend >= 0 }}
-        />
-        
-        <StatCard 
-          title="Average Daily Balance"
-          value={`$${summary.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          icon={<DollarSign className="h-5 w-5 text-primary" />}
-          description="Average daily net balance"
-          trend={{ value: Math.abs(trends.balance.trend), isPositive: trends.balance.trend >= 0 }}
-        />
-      </div>
-      
-      <div className="grid gap-6 md:grid-cols-2 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-md font-medium flex items-center gap-2">
-              <LineChart className="h-5 w-5 text-primary" />
-              Monthly Spending Trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="h-[300px] w-full p-4">
-              {isLoading ? (
-                <div className="h-full w-full flex items-center justify-center">
-                  <p className="text-muted-foreground">Loading spending data...</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={spendingTrendData}
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value) => [`$${value}`, undefined]}
-                      labelStyle={{ color: '#1A1F2C' }}
-                      contentStyle={{ 
-                        backgroundColor: 'white', 
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Bar dataKey="income" name="Income" fill="#087E8B" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="expenses" name="Expenses" fill="#D9A566" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-md font-medium flex items-center gap-2">
-              <PieChart className="h-5 w-5 text-primary" />
-              Expense Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="h-[300px] w-full p-4">
-              {isLoading ? (
-                <div className="h-full w-full flex items-center justify-center">
-                  <p className="text-muted-foreground">Loading expense data...</p>
-                </div>
-              ) : expenseBreakdownData.length === 0 ? (
-                <div className="h-full w-full flex items-center justify-center">
-                  <p className="text-muted-foreground">No expense data available</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsPieChart>
-                    <Pie
-                      data={expenseBreakdownData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="amount"
-                      label={({ name, percent }) => 
-                        `${name}: ${(percent * 100).toFixed(0)}%`
-                      }
-                    >
-                      {expenseBreakdownData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Legend />
-                    <Tooltip 
-                      formatter={(value) => {
-                        if (typeof value === 'number') {
-                          return [`$${value.toFixed(2)}`, undefined];
-                        }
-                        return [`$${value}`, undefined];
-                      }}
-                      labelStyle={{ color: '#1A1F2C' }}
-                      contentStyle={{ 
-                        backgroundColor: 'white', 
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px'
-                      }}
-                    />
-                  </RechartsPieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      
-      <div className="grid gap-6 md:grid-cols-2 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-md font-medium flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-primary" />
-              Recent Transactions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-24 flex items-center justify-center">
-                <p className="text-muted-foreground">Loading transactions...</p>
-              </div>
-            ) : validTransactions.length === 0 ? (
-              <div className="h-24 flex items-center justify-center">
-                <p className="text-muted-foreground">No transactions found</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {validTransactions.slice(0, 5).map(transaction => (
-                  <div key={transaction.id} className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="font-medium">{transaction.category}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {transaction.date.toLocaleDateString()}
-                      </span>
-                    </div>
-                    <span className={transaction.type === 'income' 
-                      ? "text-green-600 font-medium" 
-                      : "text-red-600 font-medium"
-                    }>
-                      {transaction.type === 'income' ? '+' : '-'}
-                      ${transaction.amount.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+    <div className="rounded-md border">
+      <div className="relative w-full overflow-auto">
+        <table className="w-full table-auto text-sm">
+          <thead className="[&_th]:px-4 [&_th]:py-2 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6">
+            <tr className="border-b">
+              <th>Description</th>
+              <th>Amount</th>
+              <th>Category</th>
+              <th>Type</th>
+              <th>Date</th>
+              <th className="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {transactions.map((transaction) => (
+              <tr key={transaction.id} className="border-b transition-colors hover:bg-muted/50 data-[selected=true]:bg-muted">
+                <td className="p-4 pl-6">{transaction.description}</td>
+                <td className="p-4">{transaction.amount}</td>
+                <td className="p-4">{transaction.category}</td>
+                <td className="p-4">{transaction.type}</td>
+                <td className="p-4">{format(transaction.date, 'MMM d, yyyy')}</td>
+                <td className="p-4 pr-6 text-right">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="xs" disabled={deletingTransactionId === transaction.id}>
+                        {deletingTransactionId === transaction.id ? 'Deleting...' : 'Delete'}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. Are you sure you want to delete this transaction?
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(transaction.id)}>
+                          {deletingTransactionId === transaction.id ? 'Deleting...' : 'Delete'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </td>
+              </tr>
+            ))}
+            {transactions.length === 0 && (
+              <tr>
+                <td colSpan={6} className="p-4 text-center">No transactions found.</td>
+              </tr>
             )}
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-md font-medium flex items-center gap-2">
-              <Lightbulb className="h-5 w-5 text-primary" />
-              AI Insights
-            </CardTitle>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CardSkeleton() {
+  return (
+    <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+      <CardHeader>
+        <CardTitle><Skeleton className="h-6 w-80" /></CardTitle>
+        <CardDescription><Skeleton className="h-4 w-50" /></CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="h-8 w-full" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function useDataFetching() {
+  const [date, setDate] = React.useState<Date>(new Date());
+  const [transactions, setTransactions] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const { user } = useUser();
+
+  const { data: allTransactions = [], refetch } = useFetchTransactions();
+
+  useEffect(() => {
+    if (allTransactions && allTransactions.length > 0) {
+      setIsLoading(false);
+    }
+  }, [allTransactions]);
+
+  const formattedDate = useMemo(() => format(date, 'MMMM yyyy'), [date]);
+
+  const handleMonthChange = (newDate: Date) => {
+    setDate(newDate);
+  };
+
+  const recentTransactions = useMemo(() => {
+    const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+    const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+    return allTransactions.filter(transaction => {
+      if (!transaction.date) return false;
+      return transaction.date >= startOfMonth && transaction.date <= endOfMonth;
+    });
+  }, [date, allTransactions]);
+
+  const topCategories = useMemo(() => {
+    // Get the top spending categories
+    return getExpensesByCategory(recentTransactions).slice(0, 8);
+  }, [recentTransactions]);
+
+  return {
+    date,
+    formattedDate,
+    transactions: recentTransactions,
+    isLoading,
+    handleMonthChange,
+    refetch,
+    topCategories
+  };
+}
+
+function useFetchTransactions() {
+  const { user } = useUser();
+  return useMemo(() => {
+    return useQuery({
+      queryKey: ['transactions', user?.id],
+      queryFn: () => fetchTransactions(),
+      enabled: !!user?.id,
+      retry: false,
+    });
+  }, [user?.id]);
+}
+
+export default function Dashboard() {
+  const {
+    date,
+    formattedDate,
+    transactions,
+    isLoading,
+    handleMonthChange,
+    refetch,
+    topCategories
+  } = useDataFetching();
+  const isMobile = useIsMobile();
+
+  if (isLoading) {
+    return (
+      <div className="animate-pulse">
+        <div className="container py-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle><Skeleton className="h-6 w-80" /></CardTitle>
+              <CardDescription><Skeleton className="h-4 w-50" /></CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-40 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container py-10">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <Badge variant="secondary">{formattedDate}</Badge>
+        </div>
+
+        <div className="flex items-center">
+          <DatePicker
+            date={date}
+            onMonthChange={handleMonthChange}
+            className="border-none shadow-none"
+          />
+        </div>
+      </div>
+
+      <Separator className="my-4" />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Total Income</CardTitle>
+            <CardDescription>Income for {formattedDate}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {insights.map((insight, index) => (
-                <div key={index} className="flex gap-3 bg-muted/20 p-3 rounded-lg">
-                  <Lightbulb className="h-5 w-5 text-accent shrink-0 mt-0.5" />
-                  <p className="text-sm">{insight}</p>
-                </div>
-              ))}
+            ${transactions
+              .filter(t => t.type === 'income')
+              .reduce((sum, t) => sum + t.amount, 0)
+              .toFixed(2)}
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Total Expenses</CardTitle>
+            <CardDescription>Expenses for {formattedDate}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            ${transactions
+              .filter(t => t.type === 'expense')
+              .reduce((sum, t) => sum + t.amount, 0)
+              .toFixed(2)}
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Net Balance</CardTitle>
+            <CardDescription>Income less expenses for {formattedDate}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            ${(transactions
+              .filter(t => t.type === 'income')
+              .reduce((sum, t) => sum + t.amount, 0) -
+              transactions
+                .filter(t => t.type === 'expense')
+                .reduce((sum, t) => sum + t.amount, 0)).toFixed(2)}
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Savings Rate</CardTitle>
+            <CardDescription>Savings rate for {formattedDate}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+              const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+              const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
+              return (
+                <>
+                  <span className="text-xl font-bold">{savingsRate.toFixed(2)}%</span>
+                  <Progress value={savingsRate} className="mt-2" />
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Recent Transactions</CardTitle>
+            <CardDescription>Your most recent transactions.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable transactions={transactions} />
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Spending by Category</CardTitle>
+            <CardDescription>Your spending habits this month.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col">
+            <div className="h-[300px] w-full p-4">
+              <CategoryPieChart 
+                categoryData={topCategories} 
+                categoryColors={['#087E8B', '#B0D9A2', '#D9A566', '#C9AADB', '#F9627D', '#BCA88E', '#8FB9AA', '#F28B66']}
+              />
             </div>
           </CardContent>
         </Card>
