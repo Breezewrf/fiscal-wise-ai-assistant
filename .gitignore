@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# macOS
+
+# Android Studio
+android
+capacitor.config.ts
